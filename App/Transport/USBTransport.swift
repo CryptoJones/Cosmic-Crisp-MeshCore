@@ -1,7 +1,7 @@
 import Foundation
 import MeshCoreKit
 
-#if !targetEnvironment(simulator)
+#if !targetEnvironment(simulator) && !NO_USB_DRIVER
 // IOKit comes in through App/CosmicCrisp-Bridging-Header.h (no Swift module on iOS).
 
 /// App side of the DriverKit bridge.

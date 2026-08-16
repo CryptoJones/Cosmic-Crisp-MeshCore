@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Security & profiles (#17): app lock via Face ID / Touch ID / passcode (on launch or
+  every foreground with grace period), complete data protection on stored history,
+  known-radio profiles keyed by public key with optional per-radio passcode (shared
+  iPads), Security & radios screen, forget-radio (deletes its history).
+- `CosmicCrispDev` target: same app without the embedded driver so it can be dev-signed
+  and installed on a device while the DriverKit entitlement is pending; Connection
+  sheet (tap the status bar) to set a TCP radio endpoint (bridge / WiFi companion).
 - Diagnostics (#10): per-contact path discovery (out/in hops resolved to contact names),
   trace route with per-hop SNR, packet log (raw packets + RF log lines, hex/ASCII, cap 500,
   toggle/clear) reachable from Node and contact diagnostics.
