@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 
 /// Channel key conventions used by MeshCore companion apps.
 public enum ChannelKeys {
