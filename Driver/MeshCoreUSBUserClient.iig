@@ -16,8 +16,9 @@ public:
                                          const IOUserClientMethodDispatch *dispatch, OSObject *target,
                                          void *reference) override;
 
-    // Async callback into the app carrying inbound bytes.
-    virtual void DeliverBytes(OSAction *action, const void *bytes, size_t length) LOCALONLY;
+    // Push inbound bytes to the app via the registered async action.
+    void DeliverBytes(OSAction *action, const uint8_t *bytes, size_t length) LOCALONLY;
+    void DeliverError(OSAction *action, IOReturn status) LOCALONLY;
 };
 
 #endif

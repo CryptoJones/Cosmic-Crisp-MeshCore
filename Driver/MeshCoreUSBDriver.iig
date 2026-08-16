@@ -9,6 +9,9 @@
 #include <Availability.h>
 #include <DriverKit/IOService.iig>
 #include <USBDriverKit/IOUSBHostInterface.iig>
+#include <USBDriverKit/IOUSBHostPipe.iig>
+
+class MeshCoreUSBUserClient;
 
 class MeshCoreUSBDriver: public IOService
 {
@@ -19,11 +22,12 @@ public:
     virtual kern_return_t Stop(IOService *provider) override;
     virtual kern_return_t NewUserClient(uint32_t type, IOUserClient **userClient) override;
 
-    // Called by the user client.
+    // Called by the user client (same process, no RPC).
     kern_return_t WriteBytes(const void *bytes, size_t length) LOCALONLY;
-    kern_return_t SetReadTarget(OSAction *action) LOCALONLY;
+    kern_return_t SetReadTarget(MeshCoreUSBUserClient *client, OSAction *action) LOCALONLY;
+    void ClientClosed(MeshCoreUSBUserClient *client) LOCALONLY;
 
-    // USB IN completion.
+    // USB bulk IN completion.
     virtual void ReadComplete(OSAction *action, IOReturn status, uint32_t actualByteCount,
                               uint64_t completionTimestamp) TYPE(IOUSBHostPipe::CompleteAsyncIO);
 };

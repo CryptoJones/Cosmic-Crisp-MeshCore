@@ -37,12 +37,34 @@
 * Views: Node (identity/radio/position/GPS toggle), Contacts (+ DM composer),
   Messages (+ channel-0 composer), Map (self + contacts).
 
-## Driver
+## Driver + USB transport
 
-DriverKit dext matching VID 0x2886 / PID 0x1667, CDC-Data interface. Two
-external-method selectors (`write`, `startRead`/`stopRead`) shared with
-`USBTransport.Selector`. See `docs/entitlement-request.md` — the dext cannot
-load on hardware without Apple's USB-transport entitlement.
+DriverKit dext matching VID 0x2886 / PID 0x1667, CDC-Data interface.
+
+* `Start`: opens the interface, walks the endpoint descriptors for the bulk
+  IN/OUT pair (`findBulkPipes`), allocates IO buffers, arms the first bulk-IN
+  `AsyncIO`.
+* `ReadComplete`: forwards each IN completion to the connected user client and
+  re-arms; on error, reports to the app and tries `ClearStall`.
+* `WriteBytes`: synchronous bulk-OUT `IO`, chunked to the OUT buffer, with a
+  zero-length packet after exact-multiple-of-max-packet payloads.
+* User client external methods (`Driver/MeshCoreUSBShared.h`, included by the
+  app's bridging header so both sides share the constants):
+  `write` (struct input), `startRead` (async — one completion per IN transfer,
+  bytes packed into the 16 async scalars: `[count, 8 bytes/word…]`, max 120
+  bytes), `stopRead`.
+* App side (`USBTransport`): `IOServiceOpen` on `MeshCoreUSBDriver`,
+  `IOConnectCallAsyncScalarMethod(startRead)` with an `IONotificationPort` on a
+  private queue; `AsyncScalarCodec` unpacks (unit-tested in the simulator);
+  `IOConnectCallStructMethod(write)` for sends. IOKit has no Swift module on
+  iOS, so `IOKitLib.h` comes in via `App/CosmicCrisp-Bridging-Header.h`.
+* iPadOS has **no** in-app driver activation API (`OSSystemExtensionRequest` is
+  macOS-only): the embedded dext ships inside the app and the user enables it in
+  the Settings app.
+
+Runs on hardware only with Apple's USB-transport entitlement — see
+`docs/entitlement-request.md`. CI compiles this path with a generic iOS device
+destination so it can't rot while we wait.
 
 ## GPS note
 
