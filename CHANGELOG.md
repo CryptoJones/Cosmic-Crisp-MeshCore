@@ -6,6 +6,11 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- MeshCoreKit protocol coverage (#5): contact export/import/share/add/remove/advert-path,
+  remote login/logout/status/telemetry/path-discovery/trace/remote-CLI, node params
+  (other params, PIN, tuning, time, radio, TX power, stats), Cayenne LPP decoding,
+  status/telemetry/path/trace/login/raw/log response parsing; opcode table audited
+  against the reference library. Requests can claim push-coded replies (self telemetry).
 - Messaging core: per-conversation chat (channels + direct), persistent history
   (`MessageStore`), DM delivery tracking (messageSent → ACK, RTT shown) with the
   reference retry policy (3 attempts, reset path before the 3rd), unread badges,

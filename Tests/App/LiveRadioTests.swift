@@ -29,4 +29,26 @@ final class LiveRadioTests: XCTestCase {
         XCTAssertEqual(m.status, .sent, "\(session.lastError ?? "")")
         await session.disconnect()
     }
+
+    func testTelemetryStatsAndCard() async throws {
+        let target = try XCTUnwrap(TransportFactory.tcpTarget)
+        let t = try await TCPTransport.connect(host: target.host, port: target.port)
+        let c = MeshCoreClient(transport: t)
+        await c.start()
+        let me = try await c.appStart()
+        let tele = try await c.selfTelemetry()
+        print("LIVE telemetry:", tele.records)
+        XCTAssertTrue(tele.records.contains { if case .voltage = $0.value { true } else { false } })
+        let core = try await c.stats(.core)
+        let radio = try await c.stats(.radio)
+        let packets = try await c.stats(.packets)
+        print("LIVE stats:", core, radio, packets)
+        let card = try await c.exportContact()
+        print("LIVE card: meshcore://\(card.hexString)")
+        XCTAssertGreaterThan(card.count, 32)
+        let time = try await c.deviceTime()
+        print("LIVE time:", time, "node:", me.name)
+        XCTAssertGreaterThan(time, 1_700_000_000)
+        await c.stop()
+    }
 }

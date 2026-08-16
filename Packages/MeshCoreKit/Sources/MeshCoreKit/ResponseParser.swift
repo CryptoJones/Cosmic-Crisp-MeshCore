@@ -111,6 +111,110 @@ public enum ResponseParser {
         case .pushContactsFull:
             return .pushContactsFull
 
+        case .contactURI:
+            return .contactURI(card: r.readToEnd())
+
+        case .advertPath:
+            guard let ts = r.u32(), let plen = r.u8() else { return .malformed(code: first, payload: payload) }
+            let (len, mode) = decodePathLength(plen)
+            let path = r.readToEnd()
+            return .advertPath(AdvertPath(timestamp: ts, pathLength: len, pathHashMode: mode,
+                                          path: len > 0 ? Array(path.prefix(len * (mode + 1))) : []))
+
+        case .tuningParams:
+            guard let rx = r.u32(), let af = r.u32() else { return .malformed(code: first, payload: payload) }
+            return .tuningParams(rxDelayBase: rx, airtimeFactor: af)
+
+        case .stats:
+            guard let type = r.u8() else { return .malformed(code: first, payload: payload) }
+            switch type {
+            case 0:
+                guard let mv = r.u16(), let up = r.u32(), let err = r.u16(), let q = r.u8() else { return .malformed(code: first, payload: payload) }
+                return .stats(.core(batteryMillivolts: mv, uptimeSeconds: up, errors: err, queueLength: q))
+            case 1:
+                guard let nf = r.u16(), let rssi = r.i8(), let snr = r.i8(), let tx = r.u32(), let rx = r.u32() else { return .malformed(code: first, payload: payload) }
+                return .stats(.radio(noiseFloor: Int16(bitPattern: nf), lastRSSI: rssi, lastSNR: Double(snr) / 4, txAirSeconds: tx, rxAirSeconds: rx))
+            case 2:
+                guard let recv = r.u32(), let sent = r.u32(), let ftx = r.u32(), let dtx = r.u32(), let frx = r.u32(), let drx = r.u32() else { return .malformed(code: first, payload: payload) }
+                return .stats(.packets(received: recv, sent: sent, floodTx: ftx, directTx: dtx, floodRx: frx, directRx: drx, receiveErrors: r.u32()))
+            default:
+                return .unhandled(code: first, payload: payload)
+            }
+
+        case .pushStatusResponse:
+            // 0x87, reserved, pubkey[6], then 52+ bytes of status fields
+            r.skip(1)
+            let prefix = r.read(6)
+            guard prefix.count == 6, payload.count >= 60,
+                  let bat = r.u16(), let q = r.u16(), let nf = r.u16(), let rssi = r.u16(),
+                  let nrecv = r.u32(), let nsent = r.u32(), let air = r.u32(), let up = r.u32(),
+                  let sf = r.u32(), let sd = r.u32(), let rf = r.u32(), let rd = r.u32(),
+                  let full = r.u16(), let snr = r.u16(), let ddup = r.u16(), let fdup = r.u16(), let rxair = r.u32()
+            else { return .malformed(code: first, payload: payload) }
+            return .pushStatusResponse(NodeStatus(publicKeyPrefix: prefix, batteryMillivolts: bat, txQueueLength: q,
+                noiseFloor: Int16(bitPattern: nf), lastRSSI: Int16(bitPattern: rssi), packetsReceived: nrecv, packetsSent: nsent,
+                airtimeSeconds: air, uptimeSeconds: up, sentFlood: sf, sentDirect: sd, receivedFlood: rf, receivedDirect: rd,
+                fullEvents: full, lastSNR: Double(Int16(bitPattern: snr)) / 4, directDuplicates: ddup, floodDuplicates: fdup,
+                rxAirtimeSeconds: rxair, receiveErrors: r.u32()))
+
+        case .pushTelemetryResponse:
+            r.skip(1)
+            let prefix = r.read(6)
+            guard prefix.count == 6 else { return .malformed(code: first, payload: payload) }
+            return .pushTelemetryResponse(TelemetryResponse(publicKeyPrefix: prefix, records: CayenneLPP.decode(r.readToEnd())))
+
+        case .pushPathDiscoveryResponse:
+            r.skip(1)
+            let prefix = r.read(6)
+            guard prefix.count == 6, let opl = r.u8() else { return .malformed(code: first, payload: payload) }
+            let ohl = Int((opl & 0xC0) >> 6) + 1, olen = Int(opl & 0x3F)
+            let outPath = r.read(olen * ohl)
+            guard let ipl = r.u8() else { return .malformed(code: first, payload: payload) }
+            let ihl = Int((ipl & 0xC0) >> 6) + 1, ilen = Int(ipl & 0x3F)
+            let inPath = r.read(ilen * ihl)
+            return .pushPathDiscoveryResponse(PathDiscoveryResponse(publicKeyPrefix: prefix, outPath: outPath, outPathHashLength: ohl,
+                                                                     inPath: inPath, inPathHashLength: ihl))
+
+        case .pushTraceData:
+            r.skip(1)
+            guard let rawLen = r.u8(), let flags = r.u8(), let tag = r.u32(), let auth = r.u32() else { return .malformed(code: first, payload: payload) }
+            let hashLen = 1 << Int(flags & 3)
+            let n = Int(rawLen) / hashLen
+            var hops: [TraceResponse.Hop] = []
+            var finalSNR: Double?
+            if n > 0, r.remaining >= n * hashLen + n + 1 {
+                let hashes = (0..<n).map { _ in r.read(hashLen) }
+                let snrs = (0..<n).map { _ in Double(r.i8() ?? 0) / 4 }
+                hops = zip(hashes, snrs).map { TraceResponse.Hop(hash: $0, snr: $1) }
+                finalSNR = r.i8().map { Double($0) / 4 }
+            }
+            return .pushTraceData(TraceResponse(tag: tag, auth: auth, flags: flags, hops: hops, finalSNR: finalSNR))
+
+        case .pushLoginSuccess, .pushLoginFailed:
+            var perms: UInt8?
+            var prefix: [UInt8]?
+            if code == .pushLoginSuccess {
+                perms = r.u8()
+                if r.remaining >= 6 { prefix = r.read(6) }
+            } else {
+                r.skip(1)
+                if r.remaining >= 6 { prefix = r.read(6) }
+            }
+            return .pushLoginResult(LoginResult(success: code == .pushLoginSuccess, isAdmin: (perms ?? 0) & 1 == 1,
+                                                permissions: perms, publicKeyPrefix: prefix))
+
+        case .pushContactDeleted:
+            let key = r.read(32)
+            return key.count == 32 ? .pushContactDeleted(publicKey: key) : .malformed(code: first, payload: payload)
+
+        case .pushRawData:
+            guard let snr = r.i8(), let rssi = r.i8() else { return .malformed(code: first, payload: payload) }
+            r.skip(1)   // reserved
+            return .pushRawData(snr: Double(snr) / 4, rssi: rssi, payload: r.readToEnd())
+
+        case .pushLogData:
+            return .pushLogData(payload: r.readToEnd())
+
         default:
             return .unhandled(code: first, payload: payload)
         }
