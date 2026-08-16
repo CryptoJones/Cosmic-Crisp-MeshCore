@@ -33,7 +33,7 @@
 * `NodeSession` (`@Observable`, main actor) — the one source of UI truth.
   Connects, hydrates self/device/battery/custom-vars/contacts, drains the
   message queue on `pushMessagesWaiting`, upserts contacts on new adverts.
-* `TransportFactory` — mock in the simulator, USB on device.
+* `TransportFactory` — `-tcp host:port` (or `MESHCORE_TCP`) → `TCPTransport`; else mock in the simulator, USB on device. `tools/serial-bridge.py` exposes a USB radio on the Mac over TCP for simulator development.
 * Views: Node (identity/radio/position/GPS toggle), Contacts (+ DM composer),
   Messages (+ channel-0 composer), Map (self + contacts).
 
