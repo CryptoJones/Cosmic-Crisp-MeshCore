@@ -6,7 +6,7 @@ import Foundation
 /// little-endian. Layouts mirror `meshcore/commands/*.py` in the reference library.
 public enum Command {
     // MARK: Opcodes
-    public enum Code: UInt8 {
+    public enum Code: UInt8, Sendable {
         case appStart = 0x01
         case sendTextMessage = 0x02
         case sendChannelTextMessage = 0x03

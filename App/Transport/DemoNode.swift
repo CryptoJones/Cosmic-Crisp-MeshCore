@@ -56,6 +56,23 @@ enum DemoNode {
             return [[0x00]]
         }
         await t.respond(to: .resetPath) { _ in [[0x00]] }
+        await t.respond(to: .setRadioParams) { _ in [[0x00]] }
+        await t.respond(to: .setRadioTxPower) { _ in [[0x00]] }
+        await t.respond(to: .setAdvertLatLon) { _ in [[0x00]] }
+        await t.respond(to: .setOtherParams) { _ in [[0x00]] }
+        await t.respond(to: .setDevicePin) { _ in [[0x00]] }
+        await t.respond(to: .setDeviceTime) { _ in [[0x00]] }
+        await t.respond(to: .getDeviceTime) { _ in [[0x09] + UInt32(Date().timeIntervalSince1970).leBytes] }
+        await t.respond(to: .getStats) { cmd in
+            switch cmd.count > 1 ? cmd[1] : 0 {
+            case 0: return [[0x18, 0] + UInt16(4012).leBytes + UInt32(93_784).leBytes + UInt16(0).leBytes + [0]]
+            case 1: return [[0x18, 1] + Int16(-108).leBytes + [UInt8(bitPattern: -85), UInt8(bitPattern: 30)] + UInt32(12).leBytes + UInt32(340).leBytes]
+            default:
+                var p: [UInt8] = [0x18, 2]
+                for v in [120, 40, 30, 10, 90, 30] as [UInt32] { p += v.leBytes }
+                return [p]
+            }
+        }
         await t.respond(to: .exportContact) { cmd in [[0x0B, 0x11, 0x00] + (cmd.count > 1 ? Array(cmd[1...]) : selfKey) + Array("card".utf8)] }
         await t.respond(to: .importContact) { _ in [[0x00]] }
         await t.respond(to: .shareContact) { _ in [[0x00]] }

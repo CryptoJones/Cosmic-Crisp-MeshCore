@@ -122,6 +122,74 @@ final class NodeSession {
         do { try await client.sendAdvert(flood: flood) } catch { lastError = "\(error)" }
     }
 
+    // MARK: - Node settings
+
+    private(set) var stats: (core: Stats?, radio: Stats?, packets: Stats?) = (nil, nil, nil)
+    private(set) var deviceTime: Date?
+
+    private func reloadSelf() async {
+        guard let client else { return }
+        selfInfo = try? await client.appStart()
+    }
+
+    func setRadio(freqMHz: Double, bwKHz: Double, sf: UInt8, cr: UInt8) async {
+        guard let client else { return }
+        do { try await client.setRadio(freqMHz: freqMHz, bwKHz: bwKHz, sf: sf, cr: cr); await reloadSelf() }
+        catch { lastError = "\(error)" }
+    }
+
+    func setTxPower(_ dbm: UInt8) async {
+        guard let client else { return }
+        do { try await client.setTxPower(dbm); await reloadSelf() } catch { lastError = "\(error)" }
+    }
+
+    func setAdvertLocation(lat: Double, lon: Double) async {
+        guard let client else { return }
+        do { try await client.setAdvertLocation(lat: lat, lon: lon); await reloadSelf() } catch { lastError = "\(error)" }
+    }
+
+    /// Advert location policy: 0 = never share, 1 = share in adverts.
+    func setOtherParams(manualAddContacts: Bool? = nil, telemetryBase: UInt8? = nil, telemetryLoc: UInt8? = nil,
+                        telemetryEnv: UInt8? = nil, advertLocationPolicy: UInt8? = nil, multiAcks: UInt8? = nil) async {
+        guard let client, let s = selfInfo else { return }
+        do {
+            try await client.setOtherParams(manualAddContacts: manualAddContacts ?? s.manualAddContacts,
+                                            telemetryBase: telemetryBase ?? s.telemetryModeBase,
+                                            telemetryLoc: telemetryLoc ?? s.telemetryModeLoc,
+                                            telemetryEnv: telemetryEnv ?? s.telemetryModeEnv,
+                                            advertLocationPolicy: advertLocationPolicy ?? s.advertLocationPolicy,
+                                            multiAcks: multiAcks ?? s.multiAcks)
+            await reloadSelf()
+        } catch { lastError = "\(error)" }
+    }
+
+    func setDevicePIN(_ pin: UInt32) async {
+        guard let client else { return }
+        do { try await client.setDevicePIN(pin) } catch { lastError = "\(error)" }
+    }
+
+    func refreshDeviceTime() async {
+        guard let client else { return }
+        deviceTime = (try? await client.deviceTime()).map { Date(timeIntervalSince1970: Double($0)) }
+    }
+
+    func syncTime() async {
+        guard let client else { return }
+        do { try await client.setDeviceTime(UInt32(Date().timeIntervalSince1970)); await refreshDeviceTime() }
+        catch { lastError = "\(error)" }
+    }
+
+    func refreshStats() async {
+        guard let client else { return }
+        stats = (try? await client.stats(.core), try? await client.stats(.radio), try? await client.stats(.packets))
+    }
+
+    func reboot() async {
+        guard let client else { return }
+        try? await client.reboot()
+        await disconnect()
+    }
+
     // MARK: - Contacts
 
     var selfPosition: (Double, Double)? {

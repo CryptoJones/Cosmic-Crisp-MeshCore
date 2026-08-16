@@ -6,6 +6,10 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Node settings (#7): radio editor with regional presets (freq/BW/SF/CR/TX), position
+  picker (map pin / node GPS / iPad location), share-position-in-adverts, GPS receiver,
+  zero-hop/flood adverts, manual-approve contacts, multi-ACK, telemetry modes, sensors
+  (Cayenne LPP), core/radio/packet statistics, node clock + sync, Bluetooth PIN, reboot.
 - Contacts (#6): searchable list with type/distance/bearing/last-heard, detail view
   (route, hops, position, reset path), share as meshcore:// link + QR (own card too),
   import from link, broadcast card to mesh, delete, manual-add flow for adverts heard
