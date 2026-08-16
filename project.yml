@@ -1,0 +1,121 @@
+name: Cosmic-Crisp-MeshCore
+options:
+  bundleIdPrefix: net.thenetwerk.cosmiccrisp
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    TARGETED_DEVICE_FAMILY: "2"          # iPad only
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "100"        # major*10000 + minor*100 + patch
+    DEVELOPMENT_TEAM: ""                  # set locally / in CI via xcconfig
+
+packages:
+  MeshCoreKit:
+    path: Packages/MeshCoreKit
+
+targets:
+  CosmicCrisp:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: MeshCoreKit
+      - target: MeshCoreUSB
+        embed: true
+        codeSign: true
+        # Simulator has no DriverKit; the dext only ships in device builds.
+        platformFilter: iOS
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Cosmic Crisp
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSLocationWhenInUseUsageDescription: Used to place your own node on the map.
+    entitlements:
+      path: App/CosmicCrisp.entitlements
+      properties:
+        com.apple.developer.driverkit.communicates-with-drivers: true
+        com.apple.developer.system-extension.install: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.thenetwerk.cosmiccrisp
+        ENABLE_PREVIEWS: YES
+
+  MeshCoreUSB:
+    type: driver-extension
+    platform: iOS
+    sources:
+      - Driver
+    dependencies:
+      - sdk: DriverKit.framework
+      - sdk: USBDriverKit.framework
+    info:
+      path: Driver/Info.plist
+      properties:
+        IOKitPersonalities:
+          MeshCoreUSB:
+            CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+            IOClass: IOUserService
+            IOMatchCategory: net.thenetwerk.cosmiccrisp.MeshCoreUSB
+            IOProviderClass: IOUSBHostInterface
+            IOResourceMatch: IOKit
+            IOUserClass: MeshCoreUSBDriver
+            IOUserServerName: net.thenetwerk.cosmiccrisp.MeshCoreUSB
+            # Seeed Wio Tracker L1 (nRF52840 CDC-ACM). Interface 1 is the CDC-Data class.
+            idVendor: 10374          # 0x2886
+            idProduct: 5735          # 0x1667
+            bInterfaceClass: 10      # CDC Data
+            bConfigurationValue: 1
+        OSBundleUsageDescription: Talks to MeshCore radios over USB.
+    entitlements:
+      path: Driver/MeshCoreUSB.entitlements
+      properties:
+        com.apple.developer.driverkit: true
+        com.apple.developer.driverkit.transport.usb:
+          - idVendor: 10374
+            idProduct: 5735
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.thenetwerk.cosmiccrisp.MeshCoreUSB
+        SDKROOT: driverkit
+        DRIVERKIT_DEPLOYMENT_TARGET: "23.0"
+        SUPPORTED_PLATFORMS: "driverkit"
+        CODE_SIGN_ENTITLEMENTS: Driver/MeshCoreUSB.entitlements
+        CLANG_ENABLE_CODE_COVERAGE: NO
+        CLANG_COVERAGE_MAPPING: NO
+
+  CosmicCrispTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/App
+    dependencies:
+      - target: CosmicCrisp
+
+schemes:
+  CosmicCrisp:
+    build:
+      targets:
+        CosmicCrisp: all
+        CosmicCrispTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CosmicCrispTests
+      # Coverage instrumentation injects -fprofile-instr-generate into every target in
+      # the scheme, and the DriverKit SDK ships no profile runtime → dext link fails.
+      gatherCoverageData: false

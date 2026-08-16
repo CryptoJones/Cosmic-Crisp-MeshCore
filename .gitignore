@@ -1,0 +1,27 @@
+# Xcode
+*.xcodeproj/
+!*.xcodeproj/project.pbxproj.keep
+xcuserdata/
+DerivedData/
+build/
+*.xcworkspace/xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SwiftPM
+.build/
+.swiftpm/
+Packages/*/.build/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# Secrets / signing
+*.mobileprovision
+*.p12
+*.cer
+fastlane/report.xml
