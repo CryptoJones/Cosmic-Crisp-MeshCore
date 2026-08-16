@@ -73,7 +73,9 @@ docs/                Architecture notes, entitlement request text
 
 ## Contributing
 
-Branch + PR. CI must be green. See [docs/architecture.md](docs/architecture.md)
+Branch + PR. **Run `scripts/ci-local.sh` before every push** — it mirrors the
+GitHub workflow step for step and must print `ALL CI STEPS PASSED LOCALLY`.
+See [AGENTS.md](AGENTS.md). See [docs/architecture.md](docs/architecture.md)
 before touching the protocol layer — frame layouts are documented there and
 mirror the reference [`meshcore` Python library](https://github.com/meshcore-dev/meshcore_py).
 
