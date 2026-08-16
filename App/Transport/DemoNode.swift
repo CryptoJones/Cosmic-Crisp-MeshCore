@@ -126,7 +126,7 @@ enum DemoNode {
             let start: [UInt8] = [0x02] + UInt32(2).leBytes
             let end: [UInt8] = [0x04] + UInt32(1).leBytes
             return [start,
-                    contact(name: "Bob (chat)", key: bobKey, type: 1, lat: 40.5, lon: -98.9),
+                    contact(name: "Bob (chat)", key: bobKey, type: 1, lat: 40.5, lon: -98.9, path: [rptKey[0]]),
                     contact(name: "Ridge Repeater", key: rptKey, type: 2, lat: 40.6, lon: -98.8),
                     end]
         }
@@ -169,11 +169,11 @@ enum DemoNode {
         return p
     }
 
-    private static func contact(name: String, key: [UInt8], type: UInt8, lat: Double, lon: Double) -> [UInt8] {
+    private static func contact(name: String, key: [UInt8], type: UInt8, lat: Double, lon: Double, path: [UInt8] = []) -> [UInt8] {
         var p: [UInt8] = [0x03]
         p += key
-        p += [type, 0, 0xFF]
-        p += [UInt8](repeating: 0, count: 64)
+        p += [type, 0, path.isEmpty ? 0xFF : UInt8(path.count)]
+        p += path + [UInt8](repeating: 0, count: 64 - path.count)
         p += pad(name, 32)
         p += UInt32(Date().timeIntervalSince1970).leBytes
         p += Int32(lat * 1e6).leBytes
