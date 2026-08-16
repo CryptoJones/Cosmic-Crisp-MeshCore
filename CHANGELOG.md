@@ -6,6 +6,9 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Diagnostics (#10): per-contact path discovery (out/in hops resolved to contact names),
+  trace route with per-hop SNR, packet log (raw packets + RF log lines, hex/ASCII, cap 500,
+  toggle/clear) reachable from Node and contact diagnostics.
 - Map (#9): type-tinted pins, own node from live GPS fix, tap → contact card (type,
   hops, distance/bearing, last heard, Details / Message), learned-path polylines through
   identifiable hops (highlighted on selection), toggles for paths / flood-only nodes /

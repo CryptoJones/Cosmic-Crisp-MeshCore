@@ -23,13 +23,13 @@ node configuration — the same feature set as the official companion, wired.
 
 ## Status
 
-**Pre-alpha, under active development.** See [CHANGELOG.md](CHANGELOG.md).
+**Alpha — feature-complete against the official companion app's core surface; USB path awaits Apple's entitlement.** See [CHANGELOG.md](CHANGELOG.md) and [BACKLOG.md](BACKLOG.md).
 
 | Piece | State |
 |---|---|
 | `MeshCoreKit` — companion protocol (framing, commands, response parsing) | scaffolded, unit-tested |
 | `MeshCoreUSB` — DriverKit USB CDC-ACM driver extension | scaffolded (needs entitlement to run on device) |
-| App — node info, contacts, channels, DM/channel chat with delivery status + history, map | working against real hardware (via TCP bridge) |
+| App — messaging (DM/channels, delivery, history), contacts (share/import/QR, manual-add), node settings (radio/position/adverts/telemetry/stats/clock), repeater & room admin (login/status/CLI), map (paths), diagnostics (path discovery/trace/packet log) | working; verified against real hardware via the TCP bridge where the mesh allowed |
 | CI — build + test on iPad simulator | wired |
 
 ## Requirements

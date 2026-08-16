@@ -10,7 +10,7 @@ Mirror of the [GitHub Issues tab](https://github.com/CryptoJones/Cosmic-Crisp-Me
 - [x] Node settings: radio, position, advert policy, telemetry modes, PIN, time, telemetry & stats ([#7](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/7))
 - [x] Repeater / room-server admin: login, status, remote CLI, room posts ([#8](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/8))
 - [x] Map: typed pins, detail popovers, own live position, path visualisation ([#9](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/9))
-- [ ] Diagnostics: path discovery, trace route, raw packet log, RX log ([#10](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/10))
+- [x] Diagnostics: path discovery, trace route, raw packet log, RX log ([#10](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/10))
 
 ## Blocked on Apple
 

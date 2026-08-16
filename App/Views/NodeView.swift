@@ -96,10 +96,14 @@ struct NodeView: View {
                 Button("Set Bluetooth PIN…") { showPIN = true }
                 Button("Reboot node", role: .destructive) { confirmReboot = true }
             }
+            Section("Diagnostics") {
+                NavigationLink("Packet log (\(node.packetLog.count))", value: PacketLogTarget())
+            }
             if let err = node.lastError {
                 Section("Last error") { Text(err).font(.footnote).foregroundStyle(.red) }
             }
         }
+        .navigationDestination(for: PacketLogTarget.self) { _ in PacketLogView() }
         .navigationTitle("Node")
         .task { await node.refreshDeviceTime(); await node.refreshStats() }
         .sheet(isPresented: $showRadio) { NavigationStack { RadioSettingsView() } }
