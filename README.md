@@ -55,6 +55,19 @@ the app runs with a mock transport there):
 xcodebuild -scheme CosmicCrisp -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M4)' test
 ```
 
+### Developing against a real radio in the simulator
+
+The simulator has no USB, but it can reach a radio plugged into the Mac over
+TCP. Run the bridge, then launch the app with `-tcp host:port`:
+
+```sh
+pip install pyserial
+python3 tools/serial-bridge.py /dev/cu.usbmodem*   # defaults to 127.0.0.1:5000
+xcrun simctl launch <sim-udid> net.thenetwerk.cosmiccrisp -tcp 127.0.0.1:5000
+```
+
+(The same `TCPTransport` talks to MeshCore WiFi/TCP companion nodes directly.)
+
 The protocol package builds and tests on any Swift toolchain, including Linux:
 
 ```sh
