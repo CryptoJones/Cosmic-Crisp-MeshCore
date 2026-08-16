@@ -29,7 +29,7 @@ node configuration — the same feature set as the official companion, wired.
 |---|---|
 | `MeshCoreKit` — companion protocol (framing, commands, response parsing) | scaffolded, unit-tested |
 | `MeshCoreUSB` — DriverKit USB CDC-ACM driver extension | scaffolded (needs entitlement to run on device) |
-| App — SwiftUI shell, node info, contacts, messaging, map | scaffolded |
+| App — node info, contacts, channels, DM/channel chat with delivery status + history, map | working against real hardware (via TCP bridge) |
 | CI — build + test on iPad simulator | wired |
 
 ## Requirements
@@ -67,6 +67,12 @@ xcrun simctl launch <sim-udid> net.thenetwerk.cosmiccrisp -tcp 127.0.0.1:5000
 ```
 
 (The same `TCPTransport` talks to MeshCore WiFi/TCP companion nodes directly.)
+
+With the bridge up, the opt-in live test exercises the real radio:
+
+```sh
+TEST_RUNNER_MESHCORE_TCP=127.0.0.1:5000 xcodebuild -scheme CosmicCrisp -destination '…' -only-testing:CosmicCrispTests/LiveRadioTests test
+```
 
 The protocol package builds and tests on any Swift toolchain, including Linux:
 

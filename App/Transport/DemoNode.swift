@@ -25,11 +25,37 @@ enum DemoNode {
         await t.respond(to: .setAdvertName) { _ in [[0x00]] }
         await t.respond(to: .sendSelfAdvert) { _ in [[0x00]] }
         await t.respond(to: .sendChannelTextMessage) { _ in [[0x00]] }
+        let ackCounter = MessageQueue()
         await t.respond(to: .sendTextMessage) { _ in
             var p: [UInt8] = [0x06, 0x01, 1, 2, 3, 4]
             p += UInt32(3000).leBytes
+            Task {   // simulate the recipient's ACK arriving
+                try? await Task.sleep(for: .milliseconds(800))
+                var ack: [UInt8] = [0x82, 1, 2, 3, 4]
+                ack += UInt32(640).leBytes
+                await t.push(ack)
+            }
+            _ = ackCounter
             return [p]
         }
+        let channelState = ChannelTable()
+        await t.respond(to: .getChannel) { cmd in
+            let idx = cmd.count > 1 ? cmd[1] : 0
+            let (name, secret) = channelState.get(idx)
+            var p: [UInt8] = [0x12, idx]
+            var nameBytes = Array(name.utf8.prefix(32)); nameBytes += [UInt8](repeating: 0, count: 32 - nameBytes.count)
+            p += nameBytes
+            p += secret
+            return [p]
+        }
+        await t.respond(to: .setChannel) { cmd in
+            guard cmd.count >= 50 else { return [[0x01, 0x01]] }
+            let idx = cmd[1]
+            let name = String(decoding: cmd[2..<34].prefix { $0 != 0 }, as: UTF8.self)
+            channelState.set(idx, name: name, secret: Array(cmd[34..<50]))
+            return [[0x00]]
+        }
+        await t.respond(to: .resetPath) { _ in [[0x00]] }
         await t.respond(to: .getContacts) { _ in
             let start: [UInt8] = [0x02] + UInt32(2).leBytes
             let end: [UInt8] = [0x04] + UInt32(1).leBytes
@@ -52,6 +78,10 @@ enum DemoNode {
             msg += UInt32(Date().timeIntervalSince1970).leBytes
             msg += Array("hey from the mesh 👋".utf8)
             queue.push(msg)
+            var chan: [UInt8] = [0x11, 0x10, 0, 0, 0x01, 0x02, 0x00]
+            chan += UInt32(Date().timeIntervalSince1970).leBytes
+            chan += Array("anyone on tonight?".utf8)
+            queue.push(chan)
             await t.push([0x83])
         }
         return t
@@ -86,6 +116,14 @@ enum DemoNode {
         p += UInt32(1).leBytes
         return p
     }
+}
+
+private final class ChannelTable: @unchecked Sendable {
+    private let lock = NSLock()
+    private var slots: [UInt8: (String, [UInt8])] = [0: ("Public", ChannelKeys.publicChannel),
+                                                    1: ("#nebraska", ChannelKeys.hashtagSecret(for: "#nebraska"))]
+    func get(_ i: UInt8) -> (String, [UInt8]) { lock.lock(); defer { lock.unlock() }; return slots[i] ?? ("", [UInt8](repeating: 0, count: 16)) }
+    func set(_ i: UInt8, name: String, secret: [UInt8]) { lock.lock(); slots[i] = (name, secret); lock.unlock() }
 }
 
 private final class MessageQueue: @unchecked Sendable {

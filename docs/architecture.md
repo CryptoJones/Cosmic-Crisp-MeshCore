@@ -31,6 +31,13 @@
 ## App
 
 * `NodeSession` (`@Observable`, main actor) — the one source of UI truth.
+  Conversations are keyed by `ConversationKey` (contact pubkey hex | channel
+  index); `ChatMessage`s persist through `MessageStore` (JSON per node key).
+  Outbound DMs: `sendTextMessage` → `messageSent(expectedAck, timeout)` tracked
+  in `DeliveryTracker`; `pushSendConfirmed(ack)` → delivered; timeout →
+  retry (attempt 1), reset path + retry (attempt 2), then failed — the
+  reference library's `send_msg_with_retry` policy. Sends are serialised
+  through a queue because the client is one-request-at-a-time.
   Connects, hydrates self/device/battery/custom-vars/contacts, drains the
   message queue on `pushMessagesWaiting`, upserts contacts on new adverts.
 * `TransportFactory` — `-tcp host:port` (or `MESHCORE_TCP`) → `TCPTransport`; else mock in the simulator, USB on device. `tools/serial-bridge.py` exposes a USB radio on the Mac over TCP for simulator development.

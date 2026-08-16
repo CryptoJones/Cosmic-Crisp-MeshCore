@@ -3,38 +3,37 @@ import MeshCoreKit
 
 struct ContactsView: View {
     @Environment(NodeSession.self) private var node
-    @State private var draft: [String: String] = [:]
 
     var body: some View {
         List(node.contacts) { c in
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: icon(c.kind))
-                    Text(c.name).font(.headline)
+            NavigationLink(value: ConversationKey.contact(publicKeyHex: c.id)) {
+                HStack(spacing: 12) {
+                    Image(systemName: icon(c.kind)).font(.title3).frame(width: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(c.name).font(.headline)
+                        Text(c.id.prefix(16) + "…").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                    }
                     Spacer()
-                    Text(c.outPathLength < 0 ? "flood" : "\(c.outPathLength) hop\(c.outPathLength == 1 ? "" : "s")")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Text(c.id.prefix(16) + "…").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                if c.kind == .chat {
-                    HStack {
-                        TextField("Message", text: Binding(get: { draft[c.id] ?? "" }, set: { draft[c.id] = $0 }))
-                            .textFieldStyle(.roundedBorder)
-                        Button("Send") {
-                            let text = draft[c.id] ?? ""
-                            draft[c.id] = ""
-                            Task { await node.send(text: text, to: c) }
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(c.outPathLength < 0 ? "flood" : "\(c.outPathLength) hop\(c.outPathLength == 1 ? "" : "s")")
+                        if c.lastAdvert > 0 {
+                            Text(Date(timeIntervalSince1970: Double(c.lastAdvert)), style: .relative) + Text(" ago")
                         }
-                        .disabled((draft[c.id] ?? "").isEmpty)
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                    if node.unreadCount(in: .contact(publicKeyHex: c.id)) > 0 {
+                        Circle().fill(.blue).frame(width: 8, height: 8)
                     }
                 }
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 4)
+            .disabled(c.kind != .chat)
         }
         .overlay {
             if node.contacts.isEmpty { ContentUnavailableView("No contacts yet", systemImage: "person.2") }
         }
         .navigationTitle("Contacts")
+        .navigationDestination(for: ConversationKey.self) { ConversationView(key: $0) }
         .toolbar { Button("Refresh", systemImage: "arrow.clockwise") { Task { await node.refreshContacts() } } }
     }
 

@@ -149,4 +149,17 @@ public enum Command {
     public static func syncNextMessage() -> [UInt8] { [Code.syncNextMessage.rawValue] }
 
     public static func getChannel(_ index: UInt8) -> [UInt8] { [Code.getChannel.rawValue, index] }
+
+    /// Configure a channel slot: 32-byte NUL-padded name + 16-byte secret.
+    public static func setChannel(_ index: UInt8, name: String, secret: [UInt8]) -> [UInt8] {
+        precondition(secret.count == 16, "channel secret must be 16 bytes")
+        var nameBytes = Array(name.utf8.prefix(32))
+        nameBytes += [UInt8](repeating: 0, count: 32 - nameBytes.count)
+        return [Code.setChannel.rawValue, index] + nameBytes + secret
+    }
+
+    /// Forget the learned route to a contact so the next send floods.
+    public static func resetPath(publicKey: [UInt8]) -> [UInt8] {
+        [Code.resetPath.rawValue] + publicKey
+    }
 }
