@@ -10,6 +10,11 @@ final class NodeSessionTests: XCTestCase {
         XCTAssertEqual(session.status, .connected)
         XCTAssertEqual(session.selfInfo?.name, "Demo Node")
         XCTAssertEqual(session.contacts.count, 2)
+        // Demo Bob routes via the repeater: 1 hop whose hash matches the repeater's key prefix.
+        let bob = session.contacts.first { $0.name.hasPrefix("Bob") }!
+        let rpt = session.contacts.first { $0.kind == .repeater }!
+        XCTAssertEqual(bob.outPathLength, 1)
+        XCTAssertTrue(rpt.publicKey.starts(with: bob.outPath))
     }
 
     func testNodeSettingsAgainstDemoNode() async {

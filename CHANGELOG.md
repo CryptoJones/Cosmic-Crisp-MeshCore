@@ -6,6 +6,10 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Map (#9): type-tinted pins, own node from live GPS fix, tap → contact card (type,
+  hops, distance/bearing, last heard, Details / Message), learned-path polylines through
+  identifiable hops (highlighted on selection), toggles for paths / flood-only nodes /
+  iPad location, Fit all.
 - Repeater / room-server admin (#8): login (admin/guest) with reply matching by key
   prefix, logout, status request (full NodeStatus panel), remote CLI console with quick
   commands (replies with text type 1 routed to the console, not the chat), room servers
