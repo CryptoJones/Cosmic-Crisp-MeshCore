@@ -33,6 +33,8 @@ struct ChatMessage: Identifiable, Codable, Equatable, Sendable {
     var senderPrefixHex: String?
     var senderName: String?
     var roundTripMillis: UInt32?
+    /// Room-server relayed posts carry the original poster's key prefix.
+    var signatureHex: String?
 
     init(id: UUID = UUID(), conversation: ConversationKey, direction: Direction, text: String,
          timestamp: Date = .now, status: Status, attempt: Int = 0, snr: Double? = nil,

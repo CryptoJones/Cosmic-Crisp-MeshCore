@@ -166,8 +166,8 @@ struct ContactDetailView: View {
                     }
                 }
                 Section {
-                    if c.kind == .chat {
-                        NavigationLink("Open conversation", value: ConversationKey.contact(publicKeyHex: c.id))
+                    if c.kind == .chat || c.kind == .room {
+                        NavigationLink(c.kind == .room ? "Open room" : "Open conversation", value: ConversationKey.contact(publicKeyHex: c.id))
                     }
                     if c.kind == .repeater || c.kind == .room {
                         NavigationLink("Administer", value: AdminTarget(publicKeyHex: c.id))

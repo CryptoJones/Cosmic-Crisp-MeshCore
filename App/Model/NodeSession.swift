@@ -122,6 +122,89 @@ final class NodeSession {
         do { try await client.sendAdvert(flood: flood) } catch { lastError = "\(error)" }
     }
 
+    // MARK: - Repeater / room admin
+
+    struct AdminState: Equatable {
+        struct ConsoleLine: Identifiable, Equatable { let id = UUID(); let date: Date; let outgoing: Bool; let text: String }
+        var loggedIn = false
+        var isAdmin = false
+        var lastLoginFailed = false
+        var status: NodeStatus?
+        var statusDate: Date?
+        var console: [ConsoleLine] = []
+        var busy = false
+    }
+    private(set) var admin: [String: AdminState] = [:]
+
+    func adminState(_ hex: String) -> AdminState { admin[hex] ?? AdminState() }
+
+    private func prefixHex(_ c: Contact) -> String { Array(c.publicKey.prefix(6)).hexString }
+
+    /// Wait for a specific push (login result / status) for a contact, with timeout.
+    private func awaitPush(_ key: String, timeout: Duration) async -> Response? {
+        await withCheckedContinuation { (cont: CheckedContinuation<Response?, Never>) in
+            awaitingBox[key] = ContinuationHolder(cont)
+            Task { [weak self] in
+                try? await Task.sleep(for: timeout)
+                await self?.timeoutPush(key)
+            }
+        }
+    }
+    private var awaitingBox: [String: ContinuationHolder] = [:]
+    private func timeoutPush(_ key: String) { awaitingBox.removeValue(forKey: key)?.resume(nil) }
+    private func deliverPush(_ key: String, _ r: Response) -> Bool {
+        guard let h = awaitingBox.removeValue(forKey: key) else { return false }
+        h.resume(r); return true
+    }
+
+    func login(_ c: Contact, password: String) async {
+        guard let client else { return }
+        admin[c.id, default: AdminState()].busy = true
+        defer { admin[c.id]?.busy = false }
+        do {
+            let sent = try await client.sendLogin(to: c.publicKey, password: password)
+            let wait = Duration.milliseconds(Int(Double(sent.suggestedTimeoutMillis) * 1.25) + 500)
+            if case .pushLoginResult(let r)? = await awaitPush("login:\(prefixHex(c))", timeout: wait) {
+                admin[c.id]?.loggedIn = r.success
+                admin[c.id]?.isAdmin = r.isAdmin
+                admin[c.id]?.lastLoginFailed = !r.success
+            } else {
+                admin[c.id]?.lastLoginFailed = true
+                lastError = "No login reply from \(c.name)"
+            }
+        } catch { lastError = "\(error)"; admin[c.id]?.lastLoginFailed = true }
+    }
+
+    func logout(_ c: Contact) async {
+        guard let client else { return }
+        try? await client.sendLogout(to: c.publicKey)
+        admin[c.id]?.loggedIn = false
+        admin[c.id]?.isAdmin = false
+    }
+
+    func requestStatus(_ c: Contact) async {
+        guard let client else { return }
+        admin[c.id, default: AdminState()].busy = true
+        defer { admin[c.id]?.busy = false }
+        do {
+            let sent = try await client.sendStatusRequest(to: c.publicKey)
+            let wait = Duration.milliseconds(Int(Double(sent.suggestedTimeoutMillis) * 1.25) + 500)
+            if case .pushStatusResponse(let st)? = await awaitPush("status:\(prefixHex(c))", timeout: wait) {
+                admin[c.id]?.status = st
+                admin[c.id]?.statusDate = .now
+            } else { lastError = "No status reply from \(c.name)" }
+        } catch { lastError = "\(error)" }
+    }
+
+    /// Remote CLI: the reply arrives later as a text message with textType 1 and is routed to the console.
+    func sendCommand(_ c: Contact, _ command: String) async {
+        guard let client else { return }
+        let line = AdminState.ConsoleLine(date: .now, outgoing: true, text: command)
+        admin[c.id, default: AdminState()].console.append(line)
+        do { _ = try await client.sendRemoteCommand(to: c.publicKey, command: command) }
+        catch { lastError = "\(error)"; admin[c.id]?.console.append(.init(date: .now, outgoing: false, text: "send failed: \(error)")) }
+    }
+
     // MARK: - Node settings
 
     private(set) var stats: (core: Stats?, radio: Stats?, packets: Stats?) = (nil, nil, nil)
@@ -318,7 +401,7 @@ final class NodeSession {
     var conversationKeys: [ConversationKey] {
         var keys = Set<ConversationKey>()
         for ch in configuredChannels { keys.insert(.channel(index: ch.index)) }
-        for c in contacts where c.kind == .chat { keys.insert(.contact(publicKeyHex: c.id)) }
+        for c in contacts where c.kind == .chat || c.kind == .room { keys.insert(.contact(publicKeyHex: c.id)) }
         for m in messages { keys.insert(m.conversation) }
         return keys.sorted { lastActivity($0) > lastActivity($1) }
     }
@@ -433,6 +516,14 @@ final class NodeSession {
             }
         case .pushContactDeleted(let key):
             contacts.removeAll { $0.publicKey == key }
+        case .pushLoginResult(let r):
+            let pfx = r.publicKeyPrefix?.hexString ?? ""
+            if !deliverPush("login:\(pfx)", push) {
+                // Older firmware omits the prefix: resolve any single pending login.
+                if let k = awaitingBox.keys.first(where: { $0.hasPrefix("login:") }) { _ = deliverPush(k, push) }
+            }
+        case .pushStatusResponse(let st):
+            _ = deliverPush("status:\(st.publicKeyPrefix.hexString)", push)
         case .pushAdvert, .pushPathUpdated:
             await refreshContacts()
         default:
@@ -463,12 +554,21 @@ final class NodeSession {
             case .channel(let idx):
                 key = .channel(index: idx)
             }
+            if m.textType == 1, case .contact(let hex) = key {   // remote CLI reply
+                admin[hex, default: AdminState()].console.append(.init(date: .now, outgoing: false, text: m.text))
+                continue
+            }
             let ts = m.senderTimestamp > 0 ? Date(timeIntervalSince1970: Double(m.senderTimestamp)) : .now
             let chat = ChatMessage(conversation: key, direction: .incoming, text: m.text, timestamp: ts,
                                    status: .delivered, snr: m.snr, pathLength: m.pathLength,
                                    senderPrefixHex: prefixHex, senderName: name)
-            messages.append(chat)
-            await store?.append(chat)
+            var stored = chat
+            if let sig = m.signature {   // room-server relay: signature = original poster's key prefix
+                stored.signatureHex = sig.hexString
+                stored.senderName = contacts.first { $0.publicKey.starts(with: sig) }?.name ?? "\(sig.hexString)…"
+            }
+            messages.append(stored)
+            await store?.append(stored)
         }
     }
 
@@ -479,4 +579,12 @@ final class NodeSession {
             contacts.append(contact)
         }
     }
+}
+
+
+/// Boxes a continuation so it can live in a dictionary and be resumed exactly once.
+private final class ContinuationHolder: @unchecked Sendable {
+    private var cont: CheckedContinuation<Response?, Never>?
+    init(_ c: CheckedContinuation<Response?, Never>) { cont = c }
+    func resume(_ r: Response?) { cont?.resume(returning: r); cont = nil }
 }

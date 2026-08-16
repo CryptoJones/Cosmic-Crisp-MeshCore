@@ -6,6 +6,10 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Repeater / room-server admin (#8): login (admin/guest) with reply matching by key
+  prefix, logout, status request (full NodeStatus panel), remote CLI console with quick
+  commands (replies with text type 1 routed to the console, not the chat), room servers
+  open as conversations with signed posts attributed to the original poster.
 - Node settings (#7): radio editor with regional presets (freq/BW/SF/CR/TX), position
   picker (map pin / node GPS / iPad location), share-position-in-adverts, GPS receiver,
   zero-hop/flood adverts, manual-approve contacts, multi-ACK, telemetry modes, sensors

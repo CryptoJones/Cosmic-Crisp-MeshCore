@@ -127,7 +127,7 @@ struct MessageBubble: View {
         HStack {
             if outgoing { Spacer(minLength: 60) }
             VStack(alignment: outgoing ? .trailing : .leading, spacing: 3) {
-                if !outgoing, showSender, let name = message.senderName ?? message.senderPrefixHex {
+                if !outgoing, showSender || message.signatureHex != nil, let name = message.senderName ?? message.senderPrefixHex {
                     Text(name).font(.caption.bold()).foregroundStyle(.secondary)
                 }
                 Text(message.text)
