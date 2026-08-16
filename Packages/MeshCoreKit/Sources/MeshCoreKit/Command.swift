@@ -50,18 +50,19 @@ public enum Command {
         case setCustomVar = 0x29
         case getAdvertPath = 0x2A
         case getTuningParams = 0x2B
-        case sendBinaryReq = 0x32
-        case setAutoaddConfig = 0x33
-        case getAutoaddConfig = 0x34
-        case setPathHashMode = 0x35
-        case getPathHashMode = 0x36
-        case sendPathDiscoveryReq = 0x37
-        case getStats = 0x38
-        case sendAnonReq = 0x39
-        case getAllowedRepeatFreq = 0x3A
-        case sendControlData = 0x3B
-        case setFloodScope = 0x3C
-        case getDefaultFloodScope = 0x3D
+        case sendBinaryReq = 0x32          // 50
+        case factoryReset = 0x33           // 51
+        case sendPathDiscoveryReq = 0x34   // 52
+        case setFloodScope = 0x36          // 54
+        case sendControlData = 0x37        // 55
+        case getStats = 0x38               // 56
+        case sendAnonReq = 0x39            // 57
+        case setAutoaddConfig = 0x3A       // 58
+        case getAutoaddConfig = 0x3B       // 59
+        case getAllowedRepeatFreq = 0x3C   // 60
+        case setPathHashMode = 0x3D        // 61
+        case setDefaultFloodScope = 0x3F   // 63
+        case getDefaultFloodScope = 0x40   // 64
     }
 
     /// Companion protocol version this client speaks.
@@ -162,4 +163,97 @@ public enum Command {
     public static func resetPath(publicKey: [UInt8]) -> [UInt8] {
         [Code.resetPath.rawValue] + publicKey
     }
+
+    // MARK: Contacts — sharing / editing
+
+    /// Export a contact card (or, with nil, our own node card). Node replies `contactURI`.
+    public static func exportContact(publicKey: [UInt8]? = nil) -> [UInt8] {
+        [Code.exportContact.rawValue] + (publicKey ?? [])
+    }
+
+    /// Import a card previously exported (the bytes after `meshcore://`).
+    public static func importContact(card: [UInt8]) -> [UInt8] {
+        [Code.importContact.rawValue] + card
+    }
+
+    /// Ask the node to advertise this contact's card to the mesh.
+    public static func shareContact(publicKey: [UInt8]) -> [UInt8] {
+        [Code.shareContact.rawValue] + publicKey
+    }
+
+    /// Add or update a contact record on the node (used for manual-add and path/flag edits).
+    /// Path field is 64 bytes NUL padded; length byte 0xFF = flood.
+    public static func addOrUpdateContact(_ c: Contact) -> [UInt8] {
+        var out: [UInt8] = [Code.addUpdateContact.rawValue] + c.publicKey + [c.type, c.flags]
+        if c.outPathLength < 0 {
+            out.append(0xFF)
+        } else {
+            out.append(UInt8(c.outPathLength & 0x3F) | UInt8((max(c.outPathHashMode, 0) & 0x3) << 6))
+        }
+        var path = Array(c.outPath.prefix(64)); path += [UInt8](repeating: 0, count: 64 - path.count)
+        out += path
+        var name = Array(c.name.utf8.prefix(32)); name += [UInt8](repeating: 0, count: 32 - name.count)
+        out += name
+        out += c.lastAdvert.leBytes + Int32(c.latitude * 1e6).leBytes + Int32(c.longitude * 1e6).leBytes
+        return out
+    }
+
+    public static func getAdvertPath(publicKey: [UInt8]) -> [UInt8] {
+        [Code.getAdvertPath.rawValue, 0x00] + publicKey
+    }
+
+    // MARK: Remote requests (repeaters / rooms / sensors). All reply `messageSent`; the answer arrives as a push.
+
+    public static func sendLogin(to publicKey: [UInt8], password: String) -> [UInt8] {
+        [Code.sendLogin.rawValue] + publicKey + Array(password.utf8)
+    }
+
+    public static func sendLogout(to publicKey: [UInt8]) -> [UInt8] {
+        [Code.logout.rawValue] + publicKey
+    }
+
+    public static func sendStatusRequest(to publicKey: [UInt8]) -> [UInt8] {
+        [Code.sendStatusReq.rawValue] + publicKey
+    }
+
+    /// Remote CLI command to a logged-in repeater/room (text type 1).
+    public static func sendRemoteCommand(to destination: [UInt8], command: String, timestamp: UInt32) -> [UInt8] {
+        [Code.sendTextMessage.rawValue, 0x01, 0x00] + timestamp.leBytes + destination + Array(command.utf8)
+    }
+
+    /// Telemetry request. Empty destination = our own node's telemetry (`getSelfTelemetry`).
+    public static func sendTelemetryRequest(to publicKey: [UInt8]) -> [UInt8] {
+        [Code.sendTelemetryReq.rawValue, 0, 0, 0] + publicKey
+    }
+
+    public static func getSelfTelemetry() -> [UInt8] { [Code.sendTelemetryReq.rawValue, 0, 0, 0] }
+
+    public static func sendPathDiscovery(to publicKey: [UInt8]) -> [UInt8] {
+        [Code.sendPathDiscoveryReq.rawValue, 0x00] + publicKey
+    }
+
+    /// Trace a route: `tag` identifies the reply, `auth` is echoed, `path` is the hop hashes to traverse.
+    public static func sendTrace(tag: UInt32, auth: UInt32, flags: UInt8, path: [UInt8]) -> [UInt8] {
+        [Code.sendTracePath.rawValue] + tag.leBytes + auth.leBytes + [flags] + path
+    }
+
+    // MARK: Node parameters
+
+    /// manualAddContacts + packed telemetry modes + advert location policy (+ multi-acks).
+    public static func setOtherParams(manualAddContacts: Bool, telemetryBase: UInt8, telemetryLoc: UInt8,
+                                      telemetryEnv: UInt8, advertLocationPolicy: UInt8, multiAcks: UInt8) -> [UInt8] {
+        let tele = (telemetryBase & 0b11) | ((telemetryLoc & 0b11) << 2) | ((telemetryEnv & 0b11) << 4)
+        return [Code.setOtherParams.rawValue, manualAddContacts ? 1 : 0, tele, advertLocationPolicy, multiAcks]
+    }
+
+    public static func setDevicePIN(_ pin: UInt32) -> [UInt8] { [Code.setDevicePin.rawValue] + pin.leBytes }
+
+    public static func setTuningParams(rxDelayBase: UInt32, airtimeFactor: UInt32) -> [UInt8] {
+        [Code.setTuningParams.rawValue] + rxDelayBase.leBytes + airtimeFactor.leBytes
+    }
+
+    public enum StatsType: UInt8, Sendable { case core = 0, radio = 1, packets = 2 }
+    public static func getStats(_ type: StatsType) -> [UInt8] { [Code.getStats.rawValue, type.rawValue] }
+
+    public static func hasConnection(to publicKey: [UInt8]) -> [UInt8] { [Code.hasConnection.rawValue] + publicKey }
 }

@@ -142,6 +142,73 @@ public struct ChannelInfo: Sendable, Equatable {
     public var secret: [UInt8]              // 16 bytes
 }
 
+/// Answer to a status request from a repeater/room (`pushStatusResponse`).
+public struct NodeStatus: Sendable, Equatable {
+    public var publicKeyPrefix: [UInt8]     // 6 bytes
+    public var batteryMillivolts: UInt16
+    public var txQueueLength: UInt16
+    public var noiseFloor: Int16
+    public var lastRSSI: Int16
+    public var packetsReceived: UInt32
+    public var packetsSent: UInt32
+    public var airtimeSeconds: UInt32
+    public var uptimeSeconds: UInt32
+    public var sentFlood: UInt32
+    public var sentDirect: UInt32
+    public var receivedFlood: UInt32
+    public var receivedDirect: UInt32
+    public var fullEvents: UInt16
+    public var lastSNR: Double
+    public var directDuplicates: UInt16
+    public var floodDuplicates: UInt16
+    public var rxAirtimeSeconds: UInt32
+    public var receiveErrors: UInt32?
+}
+
+public struct TelemetryResponse: Sendable, Equatable {
+    public var publicKeyPrefix: [UInt8]     // 6 bytes; all-zero for self telemetry
+    public var records: [LPPRecord]
+}
+
+public struct PathDiscoveryResponse: Sendable, Equatable {
+    public var publicKeyPrefix: [UInt8]
+    public var outPath: [UInt8]
+    public var outPathHashLength: Int
+    public var inPath: [UInt8]
+    public var inPathHashLength: Int
+    public var outHops: [[UInt8]] { stride(from: 0, to: outPath.count, by: outPathHashLength).map { Array(outPath[$0..<min($0 + outPathHashLength, outPath.count)]) } }
+    public var inHops: [[UInt8]] { stride(from: 0, to: inPath.count, by: inPathHashLength).map { Array(inPath[$0..<min($0 + inPathHashLength, inPath.count)]) } }
+}
+
+public struct TraceResponse: Sendable, Equatable {
+    public struct Hop: Sendable, Equatable { public var hash: [UInt8]; public var snr: Double }
+    public var tag: UInt32
+    public var auth: UInt32
+    public var flags: UInt8
+    public var hops: [Hop]
+    public var finalSNR: Double?
+}
+
+public struct LoginResult: Sendable, Equatable {
+    public var success: Bool
+    public var isAdmin: Bool
+    public var permissions: UInt8?
+    public var publicKeyPrefix: [UInt8]?
+}
+
+public enum Stats: Sendable, Equatable {
+    case core(batteryMillivolts: UInt16, uptimeSeconds: UInt32, errors: UInt16, queueLength: UInt8)
+    case radio(noiseFloor: Int16, lastRSSI: Int8, lastSNR: Double, txAirSeconds: UInt32, rxAirSeconds: UInt32)
+    case packets(received: UInt32, sent: UInt32, floodTx: UInt32, directTx: UInt32, floodRx: UInt32, directRx: UInt32, receiveErrors: UInt32?)
+}
+
+public struct AdvertPath: Sendable, Equatable {
+    public var timestamp: UInt32
+    public var pathLength: Int
+    public var pathHashMode: Int
+    public var path: [UInt8]
+}
+
 /// A decoded node→host payload.
 public enum Response: Sendable, Equatable {
     case ok(value: UInt32?)
@@ -164,6 +231,18 @@ public enum Response: Sendable, Equatable {
     case pushSendConfirmed(ackCode: [UInt8], roundTripMillis: UInt32?)
     case pushPathUpdated(publicKey: [UInt8])
     case pushContactsFull
+    case contactURI(card: [UInt8])
+    case advertPath(AdvertPath)
+    case tuningParams(rxDelayBase: UInt32, airtimeFactor: UInt32)
+    case stats(Stats)
+    case pushStatusResponse(NodeStatus)
+    case pushTelemetryResponse(TelemetryResponse)
+    case pushPathDiscoveryResponse(PathDiscoveryResponse)
+    case pushTraceData(TraceResponse)
+    case pushLoginResult(LoginResult)
+    case pushContactDeleted(publicKey: [UInt8])
+    case pushRawData(snr: Double, rssi: Int8, payload: [UInt8])
+    case pushLogData(payload: [UInt8])
     /// Anything we don't decode yet — kept raw so nothing is silently dropped.
     case unhandled(code: UInt8, payload: [UInt8])
     case malformed(code: UInt8?, payload: [UInt8])
@@ -171,7 +250,9 @@ public enum Response: Sendable, Equatable {
     public var isPush: Bool {
         switch self {
         case .pushAdvert, .pushNewAdvert, .pushMessagesWaiting, .pushSendConfirmed,
-             .pushPathUpdated, .pushContactsFull: return true
+             .pushPathUpdated, .pushContactsFull, .pushStatusResponse, .pushTelemetryResponse,
+             .pushPathDiscoveryResponse, .pushTraceData, .pushLoginResult, .pushContactDeleted,
+             .pushRawData, .pushLogData: return true
         case .unhandled(let code, _): return code & 0x80 != 0
         default: return false
         }

@@ -14,6 +14,9 @@ public actor MeshCoreClient {
 
     private var decoder = FrameDecoder()
     private var pending: CheckedContinuation<Response, Error>?
+    /// Some requests are answered with a frame that is otherwise a push code (e.g. self
+    /// telemetry → 0x8B). This predicate lets the pending request claim such a frame.
+    private var pendingAcceptsPush: (@Sendable (Response) -> Bool)?
     private var pendingCollector: (([Response]) -> Void)?
     private var collected: [Response] = []
     private var readTask: Task<Void, Never>?
@@ -50,11 +53,13 @@ public actor MeshCoreClient {
     // MARK: - Requests
 
     /// Send a command and await the single reply payload.
-    public func request(_ command: [UInt8], timeout: Duration? = nil) async throws -> Response {
+    public func request(_ command: [UInt8], timeout: Duration? = nil,
+                        acceptPush: (@Sendable (Response) -> Bool)? = nil) async throws -> Response {
         precondition(pending == nil && pendingCollector == nil, "one request at a time")
         let limit = timeout ?? defaultTimeout
         return try await withCheckedThrowingContinuation { cont in
             pending = cont
+            pendingAcceptsPush = acceptPush
             timeoutTask = Task { [weak self] in
                 try? await Task.sleep(for: limit)
                 guard !Task.isCancelled else { return }
@@ -161,6 +166,119 @@ public actor MeshCoreClient {
         try expectOK(await request(Command.resetPath(publicKey: publicKey)))
     }
 
+    // MARK: Contacts — sharing / editing
+
+    /// Card bytes for a contact (or our own node when nil). Encode as `meshcore://<hex>` for sharing.
+    public func exportContact(publicKey: [UInt8]? = nil) async throws -> [UInt8] {
+        switch try await request(Command.exportContact(publicKey: publicKey)) {
+        case .contactURI(let card): return card
+        case let other: throw ProtocolError.unexpected(other)
+        }
+    }
+
+    public func importContact(card: [UInt8]) async throws {
+        try expectOK(await request(Command.importContact(card: card)))
+    }
+
+    public func shareContact(publicKey: [UInt8]) async throws {
+        try expectOK(await request(Command.shareContact(publicKey: publicKey)))
+    }
+
+    public func addOrUpdateContact(_ c: Contact) async throws {
+        try expectOK(await request(Command.addOrUpdateContact(c)))
+    }
+
+    public func removeContact(publicKey: [UInt8]) async throws {
+        try expectOK(await request(Command.removeContact(publicKey: publicKey)))
+    }
+
+    public func advertPath(publicKey: [UInt8]) async throws -> AdvertPath {
+        switch try await request(Command.getAdvertPath(publicKey: publicKey)) {
+        case .advertPath(let p): return p
+        case let other: throw ProtocolError.unexpected(other)
+        }
+    }
+
+    // MARK: Remote requests — each returns the `MessageSent` receipt; the reply arrives on `pushes`.
+
+    public func sendLogin(to publicKey: [UInt8], password: String) async throws -> MessageSent {
+        try expectSent(await request(Command.sendLogin(to: publicKey, password: password)))
+    }
+
+    public func sendLogout(to publicKey: [UInt8]) async throws {
+        _ = try await request(Command.sendLogout(to: publicKey))
+    }
+
+    public func sendStatusRequest(to publicKey: [UInt8]) async throws -> MessageSent {
+        try expectSent(await request(Command.sendStatusRequest(to: publicKey)))
+    }
+
+    public func sendRemoteCommand(to publicKey: [UInt8], command: String, timestamp: UInt32? = nil) async throws -> MessageSent {
+        let ts = timestamp ?? UInt32(Date().timeIntervalSince1970)
+        return try expectSent(await request(Command.sendRemoteCommand(to: publicKey, command: command, timestamp: ts)))
+    }
+
+    public func sendTelemetryRequest(to publicKey: [UInt8]) async throws -> MessageSent {
+        try expectSent(await request(Command.sendTelemetryRequest(to: publicKey)))
+    }
+
+    /// Our own node's telemetry — answered directly (not via push).
+    public func selfTelemetry() async throws -> TelemetryResponse {
+        switch try await request(Command.getSelfTelemetry(), acceptPush: { if case .pushTelemetryResponse = $0 { true } else { false } }) {
+        case .pushTelemetryResponse(let t): return t
+        case let other: throw ProtocolError.unexpected(other)
+        }
+    }
+
+    public func sendPathDiscovery(to publicKey: [UInt8]) async throws -> MessageSent {
+        try expectSent(await request(Command.sendPathDiscovery(to: publicKey)))
+    }
+
+    public func sendTrace(tag: UInt32, auth: UInt32, flags: UInt8 = 0, path: [UInt8]) async throws -> MessageSent {
+        try expectSent(await request(Command.sendTrace(tag: tag, auth: auth, flags: flags, path: path)))
+    }
+
+    // MARK: Node parameters
+
+    public func setRadio(freqMHz: Double, bwKHz: Double, sf: UInt8, cr: UInt8) async throws {
+        try expectOK(await request(Command.setRadioParams(freqMHz: freqMHz, bwKHz: bwKHz, sf: sf, cr: cr)))
+    }
+
+    public func setTxPower(_ dbm: UInt8) async throws {
+        try expectOK(await request(Command.setRadioTxPower(dbm)))
+    }
+
+    public func setAdvertLocation(lat: Double, lon: Double) async throws {
+        try expectOK(await request(Command.setAdvertLatLon(lat: lat, lon: lon)))
+    }
+
+    public func setOtherParams(manualAddContacts: Bool, telemetryBase: UInt8, telemetryLoc: UInt8,
+                               telemetryEnv: UInt8, advertLocationPolicy: UInt8, multiAcks: UInt8) async throws {
+        try expectOK(await request(Command.setOtherParams(manualAddContacts: manualAddContacts, telemetryBase: telemetryBase,
+                                                          telemetryLoc: telemetryLoc, telemetryEnv: telemetryEnv,
+                                                          advertLocationPolicy: advertLocationPolicy, multiAcks: multiAcks)))
+    }
+
+    public func setDevicePIN(_ pin: UInt32) async throws { try expectOK(await request(Command.setDevicePIN(pin))) }
+
+    public func deviceTime() async throws -> UInt32 {
+        switch try await request(Command.getDeviceTime()) {
+        case .currentTime(let t): return t
+        case let other: throw ProtocolError.unexpected(other)
+        }
+    }
+
+    public func setDeviceTime(_ epoch: UInt32) async throws { try expectOK(await request(Command.setDeviceTime(epoch))) }
+
+    public func reboot() async throws { _ = try? await request(Command.reboot(), timeout: .seconds(1)) }
+
+    public func stats(_ type: Command.StatsType) async throws -> Stats {
+        switch try await request(Command.getStats(type)) {
+        case .stats(let s): return s
+        case let other: throw ProtocolError.unexpected(other)
+        }
+    }
+
     /// Drain the node's inbound queue. Returns nil when there's nothing waiting.
     public func nextMessage() async throws -> ReceivedMessage? {
         switch try await request(Command.syncNextMessage()) {
@@ -176,7 +294,13 @@ public actor MeshCoreClient {
         for payload in decoder.feed(chunk) {
             let response = ResponseParser.parse(payload)
             if response.isPush {
-                pushContinuation.yield(response)
+                if let p = pending, pendingAcceptsPush?(response) == true {
+                    pending = nil; pendingAcceptsPush = nil
+                    timeoutTask?.cancel(); timeoutTask = nil
+                    p.resume(returning: response)
+                } else {
+                    pushContinuation.yield(response)
+                }
                 continue
             }
             if pendingCollector != nil {
@@ -186,7 +310,7 @@ public actor MeshCoreClient {
                 continue
             }
             if let p = pending {
-                pending = nil
+                pending = nil; pendingAcceptsPush = nil
                 timeoutTask?.cancel(); timeoutTask = nil
                 p.resume(returning: response)
             } else {
@@ -198,6 +322,7 @@ public actor MeshCoreClient {
 
     private func fail(with error: Error) {
         timeoutTask?.cancel(); timeoutTask = nil
+        pendingAcceptsPush = nil
         if let p = pending { pending = nil; p.resume(throwing: error) }
     }
 
@@ -216,6 +341,11 @@ public actor MeshCoreClient {
 
     private func expectOK(_ r: Response) throws {
         if case .ok = r { return }
+        throw ProtocolError.unexpected(r)
+    }
+
+    private func expectSent(_ r: Response) throws -> MessageSent {
+        if case .messageSent(let m) = r { return m }
         throw ProtocolError.unexpected(r)
     }
 }
