@@ -17,20 +17,32 @@ jobs:
         run: swift test
 
   app:
-    name: App (iPad simulator)
+    name: App (iPad simulator + device build)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+      - name: Xcode version
+        run: xcodebuild -version
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
         run: xcodegen generate
+      - name: Pick an iPad simulator
+        id: sim
+        run: |
+          UDID=$(scripts/pick-ipad-simulator.sh)
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Build & test (simulator)
         run: |
           set -o pipefail
           xcodebuild -project Cosmic-Crisp-MeshCore.xcodeproj -scheme CosmicCrisp \
-            -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M4)' \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
             test | xcpretty
+      - name: Build (generic iOS device — compiles the USB transport + dext)
+        run: |
+          set -o pipefail
+          xcodebuild -project Cosmic-Crisp-MeshCore.xcodeproj -scheme CosmicCrisp \
+            -destination 'generic/platform=iOS' \
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
+            build | xcpretty

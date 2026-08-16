@@ -27,6 +27,7 @@ targets:
       - App
     dependencies:
       - package: MeshCoreKit
+      - sdk: IOKit.framework
       - target: MeshCoreUSB
         embed: true
         codeSign: true
@@ -52,6 +53,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.thenetwerk.cosmiccrisp
         ENABLE_PREVIEWS: YES
+        SWIFT_OBJC_BRIDGING_HEADER: App/CosmicCrisp-Bridging-Header.h
 
   MeshCoreUSB:
     type: driver-extension
