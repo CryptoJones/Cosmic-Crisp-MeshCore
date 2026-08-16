@@ -10,6 +10,7 @@ enum DemoNode {
         let bobKey = [UInt8](repeating: 0xB0, count: 32)
         let rptKey = [UInt8](repeating: 0xC0, count: 32)
 
+        let queue = MessageQueue()
         await t.respond(to: .appStart) { _ in [selfInfo(name: "Demo Node", key: selfKey)] }
         await t.respond(to: .deviceQuery) { _ in
             var p: [UInt8] = [0x0D, 0x03, 100, 8]
@@ -26,7 +27,19 @@ enum DemoNode {
         await t.respond(to: .sendSelfAdvert) { _ in [[0x00]] }
         await t.respond(to: .sendChannelTextMessage) { _ in [[0x00]] }
         let ackCounter = MessageQueue()
-        await t.respond(to: .sendTextMessage) { _ in
+        await t.respond(to: .sendTextMessage) { cmd in
+            if cmd.count > 1, cmd[1] == 0x01 {   // remote CLI command → reply as CLI-data message
+                let text = String(decoding: cmd.dropFirst(39), as: UTF8.self)
+                Task {
+                    try? await Task.sleep(for: .milliseconds(700))
+                    var reply: [UInt8] = [0x10, 0x14, 0, 0] + Array(rptKey.prefix(6)) + [0xFF, 0x01]
+                    reply += UInt32(Date().timeIntervalSince1970).leBytes
+                    reply += Array((text == "ver" ? "MeshCore repeater v1.17.1 (demo)" : "ok: \(text)").utf8)
+                    queue.push(reply)
+                    await t.push([0x83])
+                }
+                var p: [UInt8] = [0x06, 0x00, 7, 7, 7, 7]; p += UInt32(2000).leBytes; return [p]
+            }
             var p: [UInt8] = [0x06, 0x01, 1, 2, 3, 4]
             p += UInt32(3000).leBytes
             Task {   // simulate the recipient's ACK arriving
@@ -56,6 +69,28 @@ enum DemoNode {
             return [[0x00]]
         }
         await t.respond(to: .resetPath) { _ in [[0x00]] }
+        // Repeater admin: login → push result; status → push status; remote CLI (0x02 0x01) → reply message type 1.
+        await t.respond(to: .sendLogin) { cmd in
+            let pw = String(decoding: cmd.dropFirst(33), as: UTF8.self)
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                await t.push(pw == "secret" ? [0x85, 0x01] + Array(rptKey.prefix(6)) : [0x86, 0x00] + Array(rptKey.prefix(6)))
+            }
+            var p: [UInt8] = [0x06, 0x00, 5, 5, 5, 5]; p += UInt32(2000).leBytes; return [p]
+        }
+        await t.respond(to: .logout) { _ in [[0x00]] }
+        await t.respond(to: .sendStatusReq) { _ in
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                var st: [UInt8] = [0x87, 0x00] + Array(rptKey.prefix(6))
+                st += UInt16(4100).leBytes + UInt16(0).leBytes + Int16(-109).leBytes + Int16(-92).leBytes
+                st += UInt32(1000).leBytes + UInt32(900).leBytes + UInt32(120).leBytes + UInt32(864000).leBytes
+                st += UInt32(700).leBytes + UInt32(200).leBytes + UInt32(800).leBytes + UInt32(200).leBytes
+                st += UInt16(0).leBytes + Int16(30).leBytes + UInt16(3).leBytes + UInt16(9).leBytes + UInt32(400).leBytes + UInt32(1).leBytes
+                await t.push(st)
+            }
+            var p: [UInt8] = [0x06, 0x00, 6, 6, 6, 6]; p += UInt32(2000).leBytes; return [p]
+        }
         await t.respond(to: .setRadioParams) { _ in [[0x00]] }
         await t.respond(to: .setRadioTxPower) { _ in [[0x00]] }
         await t.respond(to: .setAdvertLatLon) { _ in [[0x00]] }
@@ -95,7 +130,6 @@ enum DemoNode {
                     contact(name: "Ridge Repeater", key: rptKey, type: 2, lat: 40.6, lon: -98.8),
                     end]
         }
-        let queue = MessageQueue()
         await t.respond(to: .syncNextMessage) { _ in
             if let m = queue.pop() { return [m] }
             return [[0x0A]]
