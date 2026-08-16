@@ -21,8 +21,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+      - name: Xcode version
+        run: xcodebuild -version
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -30,10 +30,7 @@ jobs:
       - name: Pick an iPad simulator
         id: sim
         run: |
-          UDID=$(xcrun simctl list devices available -j \
-            | jq -r '[.devices[] | .[] | select(.isAvailable and (.name | test("iPad")))] | sort_by(.name) | reverse | .[0].udid')
-          test -n "$UDID" && test "$UDID" != "null"
-          echo "picked: $(xcrun simctl list devices available | grep "$UDID")"
+          UDID=$(scripts/pick-ipad-simulator.sh)
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Build & test (simulator)
         run: |
