@@ -25,6 +25,10 @@ final class NodeSession {
     private(set) var lastRead: [String: Date] = [:]
     private(set) var customVars: [String: String] = [:]
     private(set) var lastError: String?
+    /// Adverts heard while manual-add-contacts is on: candidates the user can add.
+    private(set) var pendingAdverts: [Contact] = []
+    /// Cached self telemetry (battery/temp/GPS) from the node's own sensors.
+    private(set) var selfTelemetry: TelemetryResponse?
 
     var gpsEnabled: Bool { customVars["gps"] == "1" }
     var transportDescription: String { TransportFactory.description }
@@ -58,6 +62,7 @@ final class NodeSession {
             battery = try? await c.battery()
             customVars = (try? await c.customVars()) ?? [:]
             contacts = (try? await c.contacts()) ?? []
+            selfTelemetry = try? await c.selfTelemetry()
             await loadChannels()
             status = .connected
             pushTask = Task { [weak self] in
@@ -116,6 +121,77 @@ final class NodeSession {
         guard let client else { return }
         do { try await client.sendAdvert(flood: flood) } catch { lastError = "\(error)" }
     }
+
+    // MARK: - Contacts
+
+    var selfPosition: (Double, Double)? {
+        // Prefer the live GPS fix from telemetry, fall back to the advertised position.
+        if let loc = selfTelemetry?.records.compactMap({ r -> (Double, Double)? in
+            if case .location(let la, let lo, _) = r.value, Geo.hasPosition(la, lo) { return (la, lo) } else { return nil }
+        }).first { return loc }
+        if let s = selfInfo, Geo.hasPosition(s.latitude, s.longitude) { return (s.latitude, s.longitude) }
+        return nil
+    }
+
+    func refreshSelfTelemetry() async {
+        guard let client else { return }
+        selfTelemetry = try? await client.selfTelemetry()
+    }
+
+    func resetPath(_ c: Contact) async {
+        guard let client else { return }
+        do { try await client.resetPath(publicKey: c.publicKey); await refreshContacts() }
+        catch { lastError = "\(error)" }
+    }
+
+    func removeContact(_ c: Contact) async {
+        guard let client else { return }
+        do {
+            try await client.removeContact(publicKey: c.publicKey)
+            contacts.removeAll { $0.publicKey == c.publicKey }
+        } catch { lastError = "\(error)" }
+    }
+
+    /// `meshcore://…` URI for a contact, or for our own node when nil.
+    func shareURI(for c: Contact?) async -> String? {
+        guard let client else { return nil }
+        do { return "meshcore://" + (try await client.exportContact(publicKey: c?.publicKey)).hexString }
+        catch { lastError = "\(error)"; return nil }
+    }
+
+    /// Import a `meshcore://<hex>` card. Returns false (and sets lastError) on failure.
+    @discardableResult
+    func importContact(uri: String) async -> Bool {
+        guard let client else { return false }
+        let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased().hasPrefix("meshcore://"),
+              let card = ChannelKeys.bytes(fromHex: String(trimmed.dropFirst("meshcore://".count))) else {
+            lastError = "Not a meshcore:// contact link"; return false
+        }
+        do {
+            try await client.importContact(card: card)
+            await refreshContacts()
+            return true
+        } catch { lastError = "\(error)"; return false }
+    }
+
+    /// Ask the node to re-broadcast a contact's card to the mesh.
+    func shareToMesh(_ c: Contact) async {
+        guard let client else { return }
+        do { try await client.shareContact(publicKey: c.publicKey) } catch { lastError = "\(error)" }
+    }
+
+    /// Manual-add flow: promote a heard advert into the contact list.
+    func addPending(_ c: Contact) async {
+        guard let client else { return }
+        do {
+            try await client.addOrUpdateContact(c)
+            pendingAdverts.removeAll { $0.publicKey == c.publicKey }
+            await refreshContacts()
+        } catch { lastError = "\(error)" }
+    }
+
+    func dismissPending(_ c: Contact) { pendingAdverts.removeAll { $0.publicKey == c.publicKey } }
 
     // MARK: - Channels
 
@@ -281,7 +357,14 @@ final class NodeSession {
                 update(id) { $0.status = .delivered; $0.roundTripMillis = rtt }
             }
         case .pushNewAdvert(let contact):
-            upsert(contact)
+            if selfInfo?.manualAddContacts == true, !contacts.contains(where: { $0.publicKey == contact.publicKey }) {
+                if let i = pendingAdverts.firstIndex(where: { $0.publicKey == contact.publicKey }) { pendingAdverts[i] = contact }
+                else { pendingAdverts.append(contact) }
+            } else {
+                upsert(contact)
+            }
+        case .pushContactDeleted(let key):
+            contacts.removeAll { $0.publicKey == key }
         case .pushAdvert, .pushPathUpdated:
             await refreshContacts()
         default:
