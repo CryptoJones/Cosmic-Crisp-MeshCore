@@ -12,11 +12,9 @@ echo "== MeshCoreKit: swift test"
 echo "== xcodegen generate"
 xcodegen generate >/dev/null
 
-echo "== Pick an iPad simulator (same jq as CI)"
-UDID=$(xcrun simctl list devices available -j \
-  | jq -r '[.devices[] | .[] | select(.isAvailable and (.name | test("iPad")))] | sort_by(.name) | reverse | .[0].udid')
-test -n "$UDID" && test "$UDID" != "null"
-echo "picked: $(xcrun simctl list devices available | grep "$UDID" | head -1)"
+echo "== Pick an iPad simulator (same script as CI)"
+xcodebuild -version
+UDID=$(scripts/pick-ipad-simulator.sh)
 
 echo "== Build & test (simulator)"
 xcodebuild -project Cosmic-Crisp-MeshCore.xcodeproj -scheme CosmicCrisp \
