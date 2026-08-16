@@ -79,6 +79,28 @@ enum DemoNode {
             var p: [UInt8] = [0x06, 0x00, 5, 5, 5, 5]; p += UInt32(2000).leBytes; return [p]
         }
         await t.respond(to: .logout) { _ in [[0x00]] }
+        await t.respond(to: .sendPathDiscoveryReq) { cmd in
+            let dst = Array(cmd.dropFirst(2).prefix(6))
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                await t.push([0x8D, 0x00] + dst + [0x01, rptKey[0], 0x01, rptKey[0]])
+            }
+            var p: [UInt8] = [0x06, 0x00, 8, 8, 8, 8]; p += UInt32(3000).leBytes; return [p]
+        }
+        await t.respond(to: .sendTracePath) { cmd in
+            let tag = Array(cmd[1..<5]), auth = Array(cmd[5..<9])
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                var tr: [UInt8] = [0x89, 0x00, 1, 0x00] + tag + auth
+                tr += [rptKey[0]] + [UInt8(bitPattern: 22)] + [UInt8(bitPattern: 30)]
+                await t.push(tr)
+            }
+            var p: [UInt8] = [0x06, 0x00, 4, 4, 4, 4]; p += UInt32(3000).leBytes; return [p]
+        }
+        Task {   // a raw packet drifting by
+            try? await Task.sleep(for: .seconds(4))
+            await t.push([0x84, UInt8(bitPattern: 18), UInt8(bitPattern: -95), 0xFF] + Array("hello raw".utf8))
+        }
         await t.respond(to: .sendStatusReq) { _ in
             Task {
                 try? await Task.sleep(for: .milliseconds(600))

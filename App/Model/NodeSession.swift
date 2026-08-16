@@ -205,6 +205,59 @@ final class NodeSession {
         catch { lastError = "\(error)"; admin[c.id]?.console.append(.init(date: .now, outgoing: false, text: "send failed: \(error)")) }
     }
 
+    // MARK: - Diagnostics
+
+    struct PacketLogEntry: Identifiable, Equatable {
+        enum Kind: String { case raw = "RAW", log = "LOG" }
+        let id = UUID()
+        let date: Date
+        let kind: Kind
+        let snr: Double?
+        let rssi: Int8?
+        let payload: [UInt8]
+    }
+    private(set) var packetLog: [PacketLogEntry] = []
+    var packetLogEnabled = true
+    private(set) var pathResults: [String: PathDiscoveryResponse] = [:]      // contact id → last result
+    private(set) var traceResults: [String: TraceResponse] = [:]
+    private var traceTags: [UInt32: String] = [:]
+
+    func clearPacketLog() { packetLog.removeAll() }
+
+    /// Ask the mesh for the current out/in path to a contact. Reply comes as a push.
+    func discoverPath(_ c: Contact) async {
+        guard let client else { return }
+        do {
+            let sent = try await client.sendPathDiscovery(to: c.publicKey)
+            let wait = Duration.milliseconds(Int(Double(sent.suggestedTimeoutMillis) * 1.25) + 500)
+            if case .pushPathDiscoveryResponse(let r)? = await awaitPush("path:\(prefixHex(c))", timeout: wait) {
+                pathResults[c.id] = r
+                await refreshContacts()
+            } else { lastError = "No path discovery reply from \(c.name)" }
+        } catch { lastError = "\(error)" }
+    }
+
+    /// Trace along the contact's learned path (or direct); each hop reports SNR.
+    func trace(_ c: Contact) async {
+        guard let client else { return }
+        let tag = UInt32.random(in: 1...UInt32.max), auth = UInt32.random(in: 1...UInt32.max)
+        let flags: UInt8 = UInt8(max(c.outPathHashMode, 0) & 3)
+        do {
+            let sent = try await client.sendTrace(tag: tag, auth: auth, flags: flags, path: c.outPathLength > 0 ? c.outPath : [])
+            traceTags[tag] = c.id
+            let wait = Duration.milliseconds(Int(Double(sent.suggestedTimeoutMillis) * 1.25) + 500)
+            if case .pushTraceData(let r)? = await awaitPush("trace:\(tag)", timeout: wait) {
+                traceResults[c.id] = r
+            } else { lastError = "No trace reply from \(c.name)" }
+            traceTags[tag] = nil
+        } catch { lastError = "\(error)" }
+    }
+
+    /// Resolve a hop hash to a contact name if we know one.
+    func nameForHop(_ hash: [UInt8]) -> String? {
+        contacts.first { $0.publicKey.starts(with: hash) }?.name
+    }
+
     // MARK: - Node settings
 
     private(set) var stats: (core: Stats?, radio: Stats?, packets: Stats?) = (nil, nil, nil)
@@ -524,6 +577,14 @@ final class NodeSession {
             }
         case .pushStatusResponse(let st):
             _ = deliverPush("status:\(st.publicKeyPrefix.hexString)", push)
+        case .pushPathDiscoveryResponse(let r):
+            _ = deliverPush("path:\(r.publicKeyPrefix.hexString)", push)
+        case .pushTraceData(let r):
+            _ = deliverPush("trace:\(r.tag)", push)
+        case .pushRawData(let snr, let rssi, let payload):
+            if packetLogEnabled { appendLog(.init(date: .now, kind: .raw, snr: snr, rssi: rssi, payload: payload)) }
+        case .pushLogData(let payload):
+            if packetLogEnabled { appendLog(.init(date: .now, kind: .log, snr: nil, rssi: nil, payload: payload)) }
         case .pushAdvert, .pushPathUpdated:
             await refreshContacts()
         default:
@@ -570,6 +631,11 @@ final class NodeSession {
             messages.append(stored)
             await store?.append(stored)
         }
+    }
+
+    private func appendLog(_ e: PacketLogEntry) {
+        packetLog.append(e)
+        if packetLog.count > 500 { packetLog.removeFirst(packetLog.count - 500) }
     }
 
     private func upsert(_ contact: Contact) {
