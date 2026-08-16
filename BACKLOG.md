@@ -6,7 +6,7 @@ Mirror of the [GitHub Issues tab](https://github.com/CryptoJones/Cosmic-Crisp-Me
 
 - [x] Messaging core: conversations, delivery tracking, channels, history (PR #4)
 - [x] MeshCoreKit: full companion command/response coverage ([#5](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/5))
-- [ ] Contacts: detail, share/import (URI + QR), path reset, delete, manual-add ([#6](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/6))
+- [x] Contacts: detail, share/import (URI + QR), path reset, delete, manual-add ([#6](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/6))
 - [ ] Node settings: radio, position, advert policy, telemetry modes, PIN, time, telemetry & stats ([#7](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/7))
 - [ ] Repeater / room-server admin: login, status, remote CLI, room posts ([#8](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/8))
 - [ ] Map: typed pins, detail popovers, own live position, path visualisation ([#9](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/9))

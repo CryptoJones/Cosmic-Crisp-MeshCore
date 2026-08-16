@@ -56,6 +56,20 @@ enum DemoNode {
             return [[0x00]]
         }
         await t.respond(to: .resetPath) { _ in [[0x00]] }
+        await t.respond(to: .exportContact) { cmd in [[0x0B, 0x11, 0x00] + (cmd.count > 1 ? Array(cmd[1...]) : selfKey) + Array("card".utf8)] }
+        await t.respond(to: .importContact) { _ in [[0x00]] }
+        await t.respond(to: .shareContact) { _ in [[0x00]] }
+        await t.respond(to: .removeContact) { _ in [[0x00]] }
+        await t.respond(to: .addUpdateContact) { _ in [[0x00]] }
+        await t.respond(to: .sendTelemetryReq) { cmd in
+            if cmd.count == 4 {
+                var p: [UInt8] = [0x8B, 0x00] + [UInt8](repeating: 0, count: 6)
+                p += [1, 116, 1, 146, 1, 103, 1, 99, 1, 136, 6, 45, 205, 240, 231, 1, 0, 105, 170]
+                return [p]
+            }
+            var p: [UInt8] = [0x06, 0x00, 9, 9, 9, 9]; p += UInt32(1500).leBytes
+            return [p]
+        }
         await t.respond(to: .getContacts) { _ in
             let start: [UInt8] = [0x02] + UInt32(2).leBytes
             let end: [UInt8] = [0x04] + UInt32(1).leBytes

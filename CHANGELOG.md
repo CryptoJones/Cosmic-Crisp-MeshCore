@@ -6,6 +6,10 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Contacts (#6): searchable list with type/distance/bearing/last-heard, detail view
+  (route, hops, position, reset path), share as meshcore:// link + QR (own card too),
+  import from link, broadcast card to mesh, delete, manual-add flow for adverts heard
+  while manual-add-contacts is on. Self position prefers the live GPS fix from telemetry.
 - MeshCoreKit protocol coverage (#5): contact export/import/share/add/remove/advert-path,
   remote login/logout/status/telemetry/path-discovery/trace/remote-CLI, node params
   (other params, PIN, tuning, time, radio, TX power, stats), Cayenne LPP decoding,
