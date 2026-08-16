@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 
 /// Channel key conventions used by MeshCore companion apps.
 public enum ChannelKeys {
@@ -21,8 +25,14 @@ public enum ChannelKeys {
 
     /// Parse a 32-hex-char secret.
     public static func secret(fromHex hex: String) -> [UInt8]? {
-        let clean = hex.trimmingCharacters(in: .whitespaces).lowercased()
-        guard clean.count == 32, clean.allSatisfy({ $0.isHexDigit }) else { return nil }
+        guard let b = bytes(fromHex: hex), b.count == 16 else { return nil }
+        return b
+    }
+
+    /// Parse any even-length hex string.
+    public static func bytes(fromHex hex: String) -> [UInt8]? {
+        let clean = hex.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard clean.count % 2 == 0, !clean.isEmpty, clean.allSatisfy({ $0.isHexDigit }) else { return nil }
         var out: [UInt8] = []
         var i = clean.startIndex
         while i < clean.endIndex {
