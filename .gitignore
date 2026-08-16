@@ -25,3 +25,6 @@ Package.resolved
 *.p12
 *.cer
 fastlane/report.xml
+
+# XcodeGen-generated plists/entitlements
+Config/

@@ -23,19 +23,38 @@ enum TransportFactory {
         return TCPTarget(host: host.isEmpty ? "127.0.0.1" : host, port: port)
     }
 
+    /// User-configured TCP endpoint (Settings), used when no launch arg/env is present.
+    static var savedTCP: TCPTarget? {
+        get {
+            guard let host = UserDefaults.standard.string(forKey: "transport.tcp.host"), !host.isEmpty else { return nil }
+            let port = UserDefaults.standard.integer(forKey: "transport.tcp.port")
+            return TCPTarget(host: host, port: UInt16(port == 0 ? 5000 : port))
+        }
+        set {
+            UserDefaults.standard.set(newValue?.host ?? "", forKey: "transport.tcp.host")
+            UserDefaults.standard.set(Int(newValue?.port ?? 5000), forKey: "transport.tcp.port")
+        }
+    }
+
+    static var effectiveTCP: TCPTarget? { tcpTarget ?? savedTCP }
+
     static var description: String {
-        if let t = tcpTarget { return "TCP \(t.host):\(t.port)" }
+        if let t = effectiveTCP { return "TCP \(t.host):\(t.port)" }
         #if targetEnvironment(simulator)
         return "Simulator (mock node)"
+        #elseif NO_USB_DRIVER
+        return "No radio configured"
         #else
         return "USB (DriverKit)"
         #endif
     }
 
     static func make() async throws -> any MeshCoreTransport {
-        if let t = tcpTarget { return try await TCPTransport.connect(host: t.host, port: t.port) }
+        if let t = effectiveTCP { return try await TCPTransport.connect(host: t.host, port: t.port) }
         #if targetEnvironment(simulator)
         return await DemoNode.makeTransport()
+        #elseif NO_USB_DRIVER
+        throw TransportError.notConnected
         #else
         return try await USBTransport.open()
         #endif

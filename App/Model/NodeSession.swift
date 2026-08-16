@@ -27,6 +27,11 @@ final class NodeSession {
     private(set) var lastError: String?
     /// Adverts heard while manual-add-contacts is on: candidates the user can add.
     private(set) var pendingAdverts: [Contact] = []
+    /// Known radios (per public key). Updated on every successful connect.
+    private(set) var profiles: [NodeProfile] = ProfileStore.load()
+    /// True when the connected node has a profile passcode that has not been entered this session.
+    private(set) var profileLocked = false
+    var appLock: AppLock?
     /// Cached self telemetry (battery/temp/GPS) from the node's own sensors.
     private(set) var selfTelemetry: TelemetryResponse?
 
@@ -54,11 +59,13 @@ final class NodeSession {
             client = c
             let info = try await c.appStart()
             selfInfo = info
+            deviceInfo = try? await c.deviceInfo()
+            profiles = ProfileStore.touch(publicKeyHex: info.publicKeyHex, name: info.name, model: deviceInfo?.model)
+            profileLocked = appLock?.hasProfilePasscode(info.publicKeyHex) ?? false
             let s = MessageStore(nodeKeyHex: info.publicKeyHex)
             store = s
             messages = await s.messages
             lastRead = await s.lastRead
-            deviceInfo = try? await c.deviceInfo()
             battery = try? await c.battery()
             customVars = (try? await c.customVars()) ?? [:]
             contacts = (try? await c.contacts()) ?? []
@@ -256,6 +263,26 @@ final class NodeSession {
     /// Resolve a hop hash to a contact name if we know one.
     func nameForHop(_ hash: [UInt8]) -> String? {
         contacts.first { $0.publicKey.starts(with: hash) }?.name
+    }
+
+    // MARK: - Profiles
+
+    func unlockProfile(passcode: String) -> Bool {
+        guard let key = selfInfo?.publicKeyHex, let appLock else { profileLocked = false; return true }
+        let ok = appLock.verifyProfilePasscode(key, passcode: passcode)
+        if ok { profileLocked = false }
+        return ok
+    }
+
+    func setProfilePasscode(_ passcode: String?) {
+        guard let key = selfInfo?.publicKeyHex else { return }
+        appLock?.setProfilePasscode(key, passcode: passcode)
+    }
+
+    func removeProfile(_ p: NodeProfile) {
+        profiles = ProfileStore.remove(publicKeyHex: p.publicKeyHex)
+        appLock?.setProfilePasscode(p.publicKeyHex, passcode: nil)
+        if selfInfo?.publicKeyHex == p.publicKeyHex { messages = []; lastRead = [:]; Task { await store?.clear() } }
     }
 
     // MARK: - Node settings

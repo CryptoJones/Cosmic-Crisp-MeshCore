@@ -74,6 +74,12 @@ With the bridge up, the opt-in live test exercises the real radio:
 TEST_RUNNER_MESHCORE_TCP=127.0.0.1:5000 xcodebuild -scheme CosmicCrisp -destination '…' -only-testing:CosmicCrispTests/LiveRadioTests test
 ```
 
+### On a real iPad before the USB entitlement lands
+
+Build the `CosmicCrispDev` scheme (no embedded driver → ordinary development
+signing), install it, then in the app tap the status bar → *Connection* and enter
+the Mac running `tools/serial-bridge.py` (e.g. `makemake.local:5000`).
+
 The protocol package builds and tests on any Swift toolchain, including Linux:
 
 ```sh

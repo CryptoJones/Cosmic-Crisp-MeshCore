@@ -12,6 +12,10 @@ Mirror of the [GitHub Issues tab](https://github.com/CryptoJones/Cosmic-Crisp-Me
 - [x] Map: typed pins, detail popovers, own live position, path visualisation ([#9](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/9))
 - [x] Diagnostics: path discovery, trace route, raw packet log, RX log ([#10](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/10))
 
+## Security & multi-user
+
+- [x] App lock (Face ID / passcode), per-radio passcodes, known-radio profiles ([#17](https://github.com/CryptoJones/Cosmic-Crisp-MeshCore/issues/17))
+
 ## Blocked on Apple
 
 - [ ] Run the DriverKit dext on hardware — waiting on the `com.apple.developer.driverkit.transport.usb` entitlement (requested 2026-08-16)

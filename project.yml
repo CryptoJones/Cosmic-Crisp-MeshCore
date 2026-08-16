@@ -34,7 +34,7 @@ targets:
         # Simulator has no DriverKit; the dext only ships in device builds.
         platformFilter: iOS
     info:
-      path: App/Info.plist
+      path: Config/Info.plist
       properties:
         CFBundleDisplayName: Cosmic Crisp
         UILaunchScreen: {}
@@ -44,8 +44,10 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSLocationWhenInUseUsageDescription: Used to place your own node on the map.
+        NSFaceIDUsageDescription: Unlock Cosmic Crisp and protect your mesh messages.
+        NSLocalNetworkUsageDescription: Reach MeshCore radios over your local network.
     entitlements:
-      path: App/CosmicCrisp.entitlements
+      path: Config/CosmicCrisp.entitlements
       properties:
         com.apple.developer.driverkit.communicates-with-drivers: true
         com.apple.developer.system-extension.install: true
@@ -54,6 +56,36 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: net.thenetwerk.cosmiccrisp
         ENABLE_PREVIEWS: YES
         SWIFT_OBJC_BRIDGING_HEADER: App/CosmicCrisp-Bridging-Header.h
+
+  # Same app without the embedded driver: installable on a device with ordinary
+  # development signing while the DriverKit USB entitlement is pending. Talks to
+  # radios over TCP (tools/serial-bridge.py or MeshCore WiFi companions).
+  CosmicCrispDev:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: MeshCoreKit
+    info:
+      path: Config/Info-Dev.plist
+      properties:
+        CFBundleDisplayName: Cosmic Crisp (Dev)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSLocationWhenInUseUsageDescription: Used to place your own node on the map.
+        NSFaceIDUsageDescription: Unlock Cosmic Crisp and protect your mesh messages.
+        NSLocalNetworkUsageDescription: Reach MeshCore radios over your local network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.thenetwerk.cosmiccrisp.dev
+        SWIFT_OBJC_BRIDGING_HEADER: App/CosmicCrisp-Bridging-Header.h
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) NO_USB_DRIVER
+        CODE_SIGN_STYLE: Automatic
 
   MeshCoreUSB:
     type: driver-extension
@@ -64,7 +96,7 @@ targets:
       - sdk: DriverKit.framework
       - sdk: USBDriverKit.framework
     info:
-      path: Driver/Info.plist
+      path: Config/MeshCoreUSB-Info.plist
       properties:
         IOKitPersonalities:
           MeshCoreUSB:
@@ -82,7 +114,7 @@ targets:
             bConfigurationValue: 1
         OSBundleUsageDescription: Talks to MeshCore radios over USB.
     entitlements:
-      path: Driver/MeshCoreUSB.entitlements
+      path: Config/MeshCoreUSB.entitlements
       properties:
         com.apple.developer.driverkit: true
         com.apple.developer.driverkit.transport.usb:
@@ -94,7 +126,7 @@ targets:
         SDKROOT: driverkit
         DRIVERKIT_DEPLOYMENT_TARGET: "23.0"
         SUPPORTED_PLATFORMS: "driverkit"
-        CODE_SIGN_ENTITLEMENTS: Driver/MeshCoreUSB.entitlements
+        CODE_SIGN_ENTITLEMENTS: Config/MeshCoreUSB.entitlements
         CLANG_ENABLE_CODE_COVERAGE: NO
         CLANG_COVERAGE_MAPPING: NO
 
@@ -107,6 +139,12 @@ targets:
       - target: CosmicCrisp
 
 schemes:
+  CosmicCrispDev:
+    build:
+      targets:
+        CosmicCrispDev: all
+    run:
+      config: Debug
   CosmicCrisp:
     build:
       targets:

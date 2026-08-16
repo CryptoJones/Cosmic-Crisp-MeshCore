@@ -23,6 +23,7 @@ struct RootView: View {
                     }
                 }
                 NavigationLink("Map", value: Section.map)
+                NavigationLink("Security & radios", value: Section.security)
             }
             .navigationTitle("Cosmic Crisp")
             .safeAreaInset(edge: .bottom) { StatusBar() }
@@ -33,13 +34,14 @@ struct RootView: View {
                 case .contacts: ContactsView()
                 case .messages: MessagesView()
                 case .map: MapView()
+                case .security: SecurityView()
                 }
             }
         }
     }
 
     enum Section: String, Hashable, CaseIterable {
-        case node, contacts, messages, map
+        case node, contacts, messages, map, security
 
         static func fromLaunchArguments() -> Section? {
             let args = ProcessInfo.processInfo.arguments
@@ -51,16 +53,22 @@ struct RootView: View {
 
 struct StatusBar: View {
     @Environment(NodeSession.self) private var node
+    @State private var showConnection = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle().fill(color).frame(width: 10, height: 10)
-            Text(label).font(.footnote)
-            Spacer()
-            Text(node.transportDescription).font(.footnote).foregroundStyle(.secondary)
+        Button { showConnection = true } label: {
+            HStack(spacing: 8) {
+                Circle().fill(color).frame(width: 10, height: 10)
+                Text(label).font(.footnote)
+                Spacer()
+                Text(node.transportDescription).font(.footnote).foregroundStyle(.secondary)
+                Image(systemName: "chevron.up").font(.caption2).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal).padding(.vertical, 8)
+            .background(.bar)
         }
-        .padding(.horizontal).padding(.vertical, 8)
-        .background(.bar)
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showConnection) { NavigationStack { ConnectionView() } }
     }
 
     private var color: Color {

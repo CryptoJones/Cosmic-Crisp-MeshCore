@@ -104,13 +104,13 @@ actor MessageStore {
         saveTask = Task { [snapshot, url] in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            if let data = try? JSONEncoder().encode(snapshot) { try? data.write(to: url, options: .atomic) }
+            if let data = try? JSONEncoder().encode(snapshot) { try? data.write(to: url, options: [.atomic, .completeFileProtection]) }
         }
     }
 
     /// Flush immediately (tests, app background).
     func flush() {
         saveTask?.cancel()
-        if let data = try? JSONEncoder().encode(snapshot) { try? data.write(to: url, options: .atomic) }
+        if let data = try? JSONEncoder().encode(snapshot) { try? data.write(to: url, options: [.atomic, .completeFileProtection]) }
     }
 }
