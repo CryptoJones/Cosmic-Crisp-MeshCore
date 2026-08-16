@@ -146,6 +146,21 @@ public actor MeshCoreClient {
         try expectOK(await request(Command.sendChannelTextMessage(channel: channel, text: text, timestamp: ts)))
     }
 
+    public func channel(_ index: UInt8) async throws -> ChannelInfo {
+        switch try await request(Command.getChannel(index)) {
+        case .channelInfo(let c): return c
+        case let other: throw ProtocolError.unexpected(other)
+        }
+    }
+
+    public func setChannel(_ index: UInt8, name: String, secret: [UInt8]) async throws {
+        try expectOK(await request(Command.setChannel(index, name: name, secret: secret)))
+    }
+
+    public func resetPath(publicKey: [UInt8]) async throws {
+        try expectOK(await request(Command.resetPath(publicKey: publicKey)))
+    }
+
     /// Drain the node's inbound queue. Returns nil when there's nothing waiting.
     public func nextMessage() async throws -> ReceivedMessage? {
         switch try await request(Command.syncNextMessage()) {

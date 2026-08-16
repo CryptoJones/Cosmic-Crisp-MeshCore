@@ -12,7 +12,16 @@ struct RootView: View {
             List(selection: $selection) {
                 NavigationLink("Node", value: Section.node)
                 NavigationLink("Contacts", value: Section.contacts)
-                NavigationLink("Messages", value: Section.messages)
+                NavigationLink(value: Section.messages) {
+                    HStack {
+                        Text("Messages")
+                        Spacer()
+                        if node.totalUnread > 0 {
+                            Text("\(node.totalUnread)").font(.caption.bold()).foregroundStyle(.white)
+                                .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(.blue))
+                        }
+                    }
+                }
                 NavigationLink("Map", value: Section.map)
             }
             .navigationTitle("Cosmic Crisp")

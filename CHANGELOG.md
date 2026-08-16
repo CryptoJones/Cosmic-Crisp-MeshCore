@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- Messaging core: per-conversation chat (channels + direct), persistent history
+  (`MessageStore`), DM delivery tracking (messageSent → ACK, RTT shown) with the
+  reference retry policy (3 attempts, reset path before the 3rd), unread badges,
+  channel management (Public / #hashtag / custom / random keys) via `ChannelsView`,
+  contacts open conversations. `LiveRadioTests` (opt-in via `MESHCORE_TCP`) verified a real
+  channel broadcast on a Wio Tracker L1.
 - `TCPTransport` (Network.framework) + `-tcp host:port` / `MESHCORE_TCP` selection,
   and `tools/serial-bridge.py` so the simulator can drive a real USB radio.
   Verified end-to-end against a Wio Tracker L1.
