@@ -23,6 +23,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
+      - name: Install the iOS simulator runtime
+        # The macos-15 image keeps Xcode 16.2 but dropped its iOS 18.2 runtime
+        # (seen 2026-10-20: "iOS 18.2 is not installed"). Fetch it explicitly.
+        run: |
+          sudo xcodebuild -runFirstLaunch
+          xcodebuild -downloadPlatform iOS
+          xcrun simctl list runtimes
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
