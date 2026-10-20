@@ -22,7 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+        # The image's default Xcode is the one whose iOS simulator runtime is
+        # actually installed. Xcode 16.2 is still present but its iOS 18.2 runtime
+        # is not (seen 2026-10-20), and downloading one fails on the runner.
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: List simulator runtimes
+        run: xcrun simctl list runtimes
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
