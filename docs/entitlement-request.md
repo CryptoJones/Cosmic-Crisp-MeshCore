@@ -1,5 +1,16 @@
 # DriverKit USB entitlement request
 
+**Status: granted.** On 2026-10-20 Apple Developer Relations assigned
+*DriverKit USB Transport - VendorID, DriverKit* to the project's developer
+account. It is a managed capability: it can be configured on eligible App IDs by
+the account holder (and by Admins, if the team is an organization). The grant is
+scoped to the Seeed Studio vendor ID (0x2886), so any Seeed board a future
+personality matches is covered without a new request. What remains is the
+*After approval* list at the end of this page, then the first run on an iPad.
+
+The text below is kept as the record of what was asked for, and for anyone
+building a fork under their own team, who will need their own grant.
+
 The `MeshCoreUSB` driver extension needs the
 `com.apple.developer.driverkit.transport.usb` entitlement (plus the base
 `com.apple.developer.driverkit`) to run on a real iPad. Apple grants these per
@@ -53,7 +64,9 @@ device allow-list.
 
 1. In Certificates, Identifiers & Profiles, edit the **dext** App ID
    (`net.thenetwerk.cosmiccrisp.MeshCoreUSB`) → enable *DriverKit* + *DriverKit
-   USB Transport (VID/PID)*, adding the vendor/product pair.
+   USB Transport - VendorID*, selecting vendor 0x2886. The dext entitlement file
+   carries `idVendor` only, to match the vendor-scoped grant; the driver
+   personality in `Driver/Info.plist` still narrows matching to PID 0x1667.
 2. Edit the **app** App ID → enable *DriverKit Communicates with Drivers* and
    *System Extension*.
 3. Regenerate the provisioning profiles for both targets; CI reads them from

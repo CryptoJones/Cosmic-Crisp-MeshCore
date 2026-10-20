@@ -41,8 +41,9 @@
 
 DriverKit dext matching VID 0x2886 / PID 0x1667, CDC-Data interface. Two
 external-method selectors (`write`, `startRead`/`stopRead`) shared with
-`USBTransport.Selector`. See `docs/entitlement-request.md` — the dext cannot
-load on hardware without Apple's USB-transport entitlement.
+`USBTransport.Selector`. See `docs/entitlement-request.md` — Apple granted the
+USB-transport entitlement (vendor-scoped, 0x2886) on 2026-10-20; the dext has
+not yet been run on hardware.
 
 ## GPS note
 

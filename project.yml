@@ -83,9 +83,10 @@ targets:
       path: Driver/MeshCoreUSB.entitlements
       properties:
         com.apple.developer.driverkit: true
+        # Vendor-scoped, as granted 2026-10-20 (DriverKit USB Transport - VendorID).
+        # The PID narrowing lives in the IOKitPersonalities above.
         com.apple.developer.driverkit.transport.usb:
           - idVendor: 10374
-            idProduct: 5735
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.thenetwerk.cosmiccrisp.MeshCoreUSB

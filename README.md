@@ -28,7 +28,7 @@ node configuration — the same feature set as the official companion, wired.
 | Piece | State |
 |---|---|
 | `MeshCoreKit` — companion protocol (framing, commands, response parsing) | scaffolded, unit-tested |
-| `MeshCoreUSB` — DriverKit USB CDC-ACM driver extension | scaffolded (needs entitlement to run on device) |
+| `MeshCoreUSB` — DriverKit USB CDC-ACM driver extension | scaffolded; entitlement granted 2026-10-20, not yet run on hardware |
 | App — SwiftUI shell, node info, contacts, messaging, map | scaffolded |
 | CI — build + test on iPad simulator | wired |
 
@@ -39,7 +39,10 @@ node configuration — the same feature set as the official companion, wired.
   (e.g. Seeed Wio Tracker L1: `WioTrackerL1_companion_radio_usb-*.uf2`)
 - To build: Xcode 16+, [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - To run the USB driver on hardware: the `com.apple.developer.driverkit.transport.usb`
-  entitlement — see [docs/entitlement-request.md](docs/entitlement-request.md)
+  entitlement. Apple assigned it to this project's developer account on
+  2026-10-20 as **DriverKit USB Transport - VendorID** (Seeed Studio, VID 0x2886).
+  A fork built under another team needs its own grant — see
+  [docs/entitlement-request.md](docs/entitlement-request.md)
 
 ## Building
 
